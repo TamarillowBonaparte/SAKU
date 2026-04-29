@@ -1,0 +1,48 @@
+# .gitignore
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Test binary
+*.test
+
+# Output of coverage
+*.out
+*.cover
+
+# Dependency directories
+vendor/
+go.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Firebase
+serviceAccountKey.json
+firebase-debug.log
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Build
+dist/
+build/

@@ -1,0 +1,74 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.production.local
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Firebase & Google Services (SENSITIVE)
+google-services.json
+serviceAccountKey.json
+firebase-debug.log
+
+# Temporary files
+tmp/
+backend/tmp/
+temp/
+.DS_Store
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.iml
+
+# Build files
+build/
+dist/
+.expo/
+.gradle/
+local.properties
+*.hprof
+.cxx/
+
+# Android
+android/build/
+android/.gradle/
+android/app/build/
+*.apk
+*.aab
+
+# Go
+vendor/
+go.sum
+backend/.gocache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE - VSCode
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+
+# IDE - IntelliJ
+.idea/
+*.iml
+
+# Test coverage
+coverage/
+*.lcov
+
+# Misc
+*.bak
+*.swp
+.env.*.local
