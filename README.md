@@ -6,6 +6,7 @@
 
 ### Solusi Manajemen Keuangan Personal yang Cerdas & Terpercaya
 
+[![Work in Progress](https://img.shields.io/badge/Status-🚧%20In%20Development-orange?style=flat-square)](https://github.com/TamarillowBonaparte/SAKU)
 [![React Native](https://img.shields.io/badge/React%20Native-Expo-61DAFB?style=flat-square&logo=react)](https://reactnative.dev/)
 [![Go Backend](https://img.shields.io/badge/Backend-Go-00ADD8?style=flat-square&logo=go)](https://golang.org/)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -22,6 +23,12 @@
 **SAKU** adalah aplikasi manajemen keuangan personal yang dirancang khusus untuk membantu Anda mengelola keuangan dengan lebih efisien. Dari pencatatan transaksi harian hingga perencanaan budget dan pelacakan utang, SAKU hadir dengan teknologi terdepan untuk memberikan pengalaman pengguna terbaik.
 
 Dibangun dengan **React Native + Expo** untuk frontend dan **Go** untuk backend, SAKU menawarkan performa tinggi, keamanan maksimal, dan skalabilitas yang luar biasa.
+
+---
+
+> ⚠️ **Status: Proyek Masih dalam Tahap Pengembangan (Work in Progress)**
+> 
+> SAKU saat ini masih dalam tahap aktif development. Fitur-fitur terus ditambahkan dan disempurnakan. Beberapa API endpoint dan UI mungkin masih mengalami perubahan. Terima kasih atas kesabaran dan dukungan Anda!
 
 ---
 
