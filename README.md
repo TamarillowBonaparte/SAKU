@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-[🌟 Fitur](#fitur-utama) • [📱 Demo](#demo) • [⚙️ Teknologi](#teknologi) • [🚀 Instalasi](#instalasi) • [📖 Dokumentasi](#dokumentasi)
+[🌟 Fitur](#Onprogress) • [📱 Demo](#Onprogress) • [⚙️ Teknologi](#teknologi) • [🚀 Instalasi](#Onprogress) • [📖 Dokumentasi](#Onprogress)
 
 </div>
 
