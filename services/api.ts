@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError, AxiosInstance } from 'axios';
+import apiConfig from '../config/apiConfig';
 
-// Ganti IP ini jika IP WiFi PC berubah (cek dengan: ipconfig)
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.173.85.147:8080/api';
-//const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.15:8080/api';
+// API Base URL is now managed by config/apiConfig.ts
+// This provides automatic IP detection, environment-based config, and easy switching for production
+const API_BASE_URL = apiConfig.baseURL;
 
 const TOKEN_KEY = 'auth_token';
 const LAST_ACTIVITY_KEY = 'last_activity';

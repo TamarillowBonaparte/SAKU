@@ -27,7 +27,7 @@ Dibangun dengan **React Native + Expo** untuk frontend dan **Go** untuk backend,
 ---
 
 > ⚠️ **Status: Proyek Masih dalam Tahap Pengembangan (Work in Progress)**
-> 
+>
 > SAKU saat ini masih dalam tahap aktif development. Fitur-fitur terus ditambahkan dan disempurnakan. Beberapa API endpoint dan UI mungkin masih mengalami perubahan. Terima kasih atas kesabaran dan dukungan Anda!
 
 ---
