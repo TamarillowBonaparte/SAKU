@@ -1,6 +1,7 @@
 <div align="center">
 
-![SAKU Logo](assets/images/Logo/Saku%20Logo%20HD.png)
+<img width="2816" height="1536" alt="SAKU" src="https://github.com/user-attachments/assets/a7c0f000-0c41-4630-9e45-da09573bf087" />
+
 
 # SAKU - Smart Accounting & Keuangan Utility
 
@@ -12,7 +13,7 @@
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-[🌟 Fitur](#fitur-utama) • [📱 Demo](#demo) • [⚙️ Teknologi](#teknologi) • [🚀 Instalasi](#instalasi) • [📖 Dokumentasi](#dokumentasi)
+[🌟 Fitur](#Onprogress) • [📱 Demo](#Onprogress) • [⚙️ Teknologi](#teknologi) • [🚀 Instalasi](#Onprogress) • [📖 Dokumentasi](#Onprogress)
 
 </div>
 
