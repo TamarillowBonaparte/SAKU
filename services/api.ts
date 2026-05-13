@@ -4,7 +4,7 @@ import axios, { AxiosError, AxiosInstance } from "axios";
 // Ganti IP ini jika IP WiFi PC berubah (cek dengan: ipconfig)
 
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.42:8080/api";
+  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.34:8080/api";
 //const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.15:8080/api';
 
 const TOKEN_KEY = "auth_token";
