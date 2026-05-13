@@ -1,18 +1,26 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios, { AxiosError, AxiosInstance } from "axios";
-import apiConfig from "../config/apiConfig";
 
-// API Base URL is now managed by config/apiConfig.ts
-// This provides environment-based config and easy switching for production
-const API_BASE_URL = apiConfig.baseURL;
+// Ganti IP ini jika IP WiFi PC berubah (cek dengan: ipconfig)
+
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.42:8080/api";
+//const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.15:8080/api';
 
 const TOKEN_KEY = "auth_token";
 const LAST_ACTIVITY_KEY = "last_activity";
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
+type SessionExpiredCallback = () => void;
+
 // Token manager dengan AsyncStorage persistence
 export const tokenManager = {
   token: null as string | null,
+  onSessionExpired: null as SessionExpiredCallback | null,
+
+  setOnSessionExpired(callback: SessionExpiredCallback) {
+    this.onSessionExpired = callback;
+  },
 
   async setToken(token: string) {
     this.token = token;
@@ -30,6 +38,10 @@ export const tokenManager = {
     await AsyncStorage.removeItem(TOKEN_KEY);
     await AsyncStorage.removeItem(LAST_ACTIVITY_KEY);
     console.log("❌ Token cleared dari memory dan storage");
+    // Trigger session expired callback
+    if (this.onSessionExpired) {
+      this.onSessionExpired();
+    }
   },
 
   async restoreToken(): Promise<string | null> {
@@ -94,6 +106,10 @@ export const tokenManager = {
       console.error("Error checking inactivity:", error);
       return false;
     }
+  },
+
+  async _notifySessionExpired() {
+    await this.clearToken();
   },
 };
 
