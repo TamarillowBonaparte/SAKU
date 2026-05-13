@@ -2,7 +2,6 @@
  * API Configuration Management
  *
  * This module provides a flexible, modular API configuration system that:
- * - Auto-detects local IP for development environments
  * - Supports environment-based overrides via .env
  * - Easily switchable for production/hosting
  * - Maintains configuration in one centralized place
@@ -30,7 +29,9 @@ const getEnvironment = (): Environment => {
  * Priority order:
  * 1. EXPO_PUBLIC_API_URL (direct override from .env)
  * 2. EXPO_PUBLIC_API_CUSTOM_URL (custom URL for any environment)
- * 3. Environment-based auto-detection (DEV: auto-local IP, PROD: fixed URL)
+ * 3. Environment-based overrides (DEV_URL, STAGING_URL, PROD_URL)
+ * 4. For development: auto-detect local IP (if available)
+ * 5. Fallback to localhost
  */
 const getApiBaseUrl = (): string => {
   // Priority 1: Direct override
@@ -72,8 +73,7 @@ const getApiBaseUrl = (): string => {
 
     case "development":
     default:
-      // For development, use local IP
-      // Default to localhost first, can be overridden by environment variable
+      // For development, use manual configuration
       const devUrl =
         process.env.EXPO_PUBLIC_API_DEV_URL || "http://localhost:8080/api";
       console.log("🔧 Development URL:", devUrl);
@@ -97,13 +97,7 @@ export const apiConfig: ApiConfig = {
 export const updateApiConfig = (newBaseURL: string): void => {
   console.log("🔄 Updating API baseURL to:", newBaseURL);
   apiConfig.baseURL = newBaseURL;
-};
 
-/**
- * Utility function to get environment info for debugging
- */
-export const getApiConfigInfo = () => {
-  return {
     environment: apiConfig.environment,
     baseURL: apiConfig.baseURL,
     timeout: apiConfig.timeout,

@@ -1,13 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios, { AxiosError, AxiosInstance } from 'axios';
-import apiConfig from '../config/apiConfig';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios, { AxiosError, AxiosInstance } from "axios";
+import apiConfig from "../config/apiConfig";
 
 // API Base URL is now managed by config/apiConfig.ts
-// This provides automatic IP detection, environment-based config, and easy switching for production
+// This provides environment-based config and easy switching for production
 const API_BASE_URL = apiConfig.baseURL;
 
-const TOKEN_KEY = 'auth_token';
-const LAST_ACTIVITY_KEY = 'last_activity';
+const TOKEN_KEY = "auth_token";
+const LAST_ACTIVITY_KEY = "last_activity";
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 
 // Token manager dengan AsyncStorage persistence
@@ -18,7 +18,7 @@ export const tokenManager = {
     this.token = token;
     await AsyncStorage.setItem(TOKEN_KEY, token);
     await this.updateLastActivity();
-    console.log('✅ Token set dan disimpan ke AsyncStorage');
+    console.log("✅ Token set dan disimpan ke AsyncStorage");
   },
 
   getToken() {
@@ -29,14 +29,14 @@ export const tokenManager = {
     this.token = null;
     await AsyncStorage.removeItem(TOKEN_KEY);
     await AsyncStorage.removeItem(LAST_ACTIVITY_KEY);
-    console.log('❌ Token cleared dari memory dan storage');
+    console.log("❌ Token cleared dari memory dan storage");
   },
 
   async restoreToken(): Promise<string | null> {
     try {
       const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
       const lastActivity = await AsyncStorage.getItem(LAST_ACTIVITY_KEY);
-      
+
       if (!storedToken) {
         return null;
       }
@@ -48,7 +48,7 @@ export const tokenManager = {
         const timeDifference = currentTime - lastActivityTime;
 
         if (timeDifference > INACTIVITY_TIMEOUT) {
-          console.log('⏰ Session expired due to inactivity');
+          console.log("⏰ Session expired due to inactivity");
           await this.clearToken();
           return null;
         }
@@ -56,10 +56,10 @@ export const tokenManager = {
 
       this.token = storedToken;
       await this.updateLastActivity();
-      console.log('✅ Token restored dari AsyncStorage');
+      console.log("✅ Token restored dari AsyncStorage");
       return storedToken;
     } catch (error) {
-      console.error('Error restoring token:', error);
+      console.error("Error restoring token:", error);
       return null;
     }
   },
@@ -68,7 +68,7 @@ export const tokenManager = {
     try {
       await AsyncStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
     } catch (error) {
-      console.error('Error updating last activity:', error);
+      console.error("Error updating last activity:", error);
     }
   },
 
@@ -84,14 +84,14 @@ export const tokenManager = {
       const timeDifference = currentTime - lastActivityTime;
 
       if (timeDifference > INACTIVITY_TIMEOUT) {
-        console.log('⏰ Session expired due to inactivity - clearing token');
+        console.log("⏰ Session expired due to inactivity - clearing token");
         await this.clearToken();
         return true;
       }
 
       return false;
     } catch (error) {
-      console.error('Error checking inactivity:', error);
+      console.error("Error checking inactivity:", error);
       return false;
     }
   },
@@ -101,7 +101,7 @@ export const tokenManager = {
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -112,7 +112,7 @@ apiClient.interceptors.request.use(
     const isExpired = await tokenManager.checkAndClearInactiveSession();
     if (isExpired) {
       // Session expired - return error to be handled by AuthContext
-      return Promise.reject(new Error('Session expired due to inactivity'));
+      return Promise.reject(new Error("Session expired due to inactivity"));
     }
 
     // Update last activity
@@ -126,7 +126,7 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor to handle token expiration
@@ -139,18 +139,28 @@ apiClient.interceptors.response.use(
       // App will redirect to login automatically via AuthContext
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 // ===== Auth API Functions =====
 
-export const registerUser = async (name: string, email: string, password: string, otp: string) => {
-  const response = await apiClient.post('/auth/register', { name, email, password, otp });
+export const registerUser = async (
+  name: string,
+  email: string,
+  password: string,
+  otp: string,
+) => {
+  const response = await apiClient.post("/auth/register", {
+    name,
+    email,
+    password,
+    otp,
+  });
   return response.data;
 };
 
 export const registerSendOTP = async (email: string) => {
-  const response = await apiClient.post('/auth/register-send-otp', { email });
+  const response = await apiClient.post("/auth/register-send-otp", { email });
   return response.data;
 };
 

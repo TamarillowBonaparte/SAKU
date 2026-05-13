@@ -1,11 +1,17 @@
-import { tokenManager } from '@/services/api';
-import authService from '@/services/authService';
+import { tokenManager } from "@/services/api";
+import authService from "@/services/authService";
 import {
-  registerForPushNotifications,
-  signInWithGoogle,
-} from '@/services/firebaseService';
-import notificationService from '@/services/notificationService';
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+    registerForPushNotifications,
+    signInWithGoogle,
+} from "@/services/firebaseService";
+import notificationService from "@/services/notificationService";
+import React, {
+    createContext,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 
 interface User {
   id: number;
@@ -31,22 +37,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inactivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const setupPushNotification = async () => {
     try {
       const token = await registerForPushNotifications();
       if (token) {
-        console.log('Push token ready:', token);
+        console.log("Push token ready:", token);
         await notificationService.registerPushToken(token);
       }
     } catch (err) {
-      console.warn('Push notification setup gagal:', err);
+      console.warn("Push notification setup gagal:", err);
     }
   };
 
@@ -55,12 +65,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(inactivityTimeoutRef.current);
     }
 
-    inactivityTimeoutRef.current = setTimeout(async () => {
-      if (isAuthenticated) {
-        console.log('User inactive for 30 minutes - logging out automatically');
-        await logout();
-      }
-    }, 30 * 60 * 1000);
+    inactivityTimeoutRef.current = setTimeout(
+      async () => {
+        if (isAuthenticated) {
+          console.log(
+            "User inactive for 30 minutes - logging out automatically",
+          );
+          await logout();
+        }
+      },
+      30 * 60 * 1000,
+    );
   };
 
   const checkAuth = async () => {
@@ -80,8 +95,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(false);
       }
     } catch (err: any) {
-      console.error('Auth check error:', err);
-      setError(err?.message || 'Failed to check authentication');
+      console.error("Auth check error:", err);
+      setError(err?.message || "Failed to check authentication");
       setIsAuthenticated(false);
       setUser(null);
     } finally {
@@ -108,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setupPushNotification();
       resetInactivityTimer();
     } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || 'Login failed';
+      const errorMessage = err?.response?.data?.message || "Login failed";
       setError(errorMessage);
       throw err;
     } finally {
@@ -130,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resetInactivityTimer();
     } catch (err: any) {
       const errorMessage =
-        err?.response?.data?.message || err?.message || 'Google login gagal';
+        err?.response?.data?.message || err?.message || "Google login gagal";
       setError(errorMessage);
       throw err;
     } finally {
@@ -150,7 +165,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setupPushNotification();
       resetInactivityTimer();
     } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || 'Registration failed';
+      const errorMessage =
+        err?.response?.data?.message || "Registration failed";
       setError(errorMessage);
       throw err;
     } finally {
@@ -172,7 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         inactivityTimeoutRef.current = null;
       }
     } catch (err: any) {
-      const errorMessage = err?.message || 'Logout failed';
+      const errorMessage = err?.message || "Logout failed";
       setError(errorMessage);
       throw err;
     } finally {
@@ -216,8 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
-
