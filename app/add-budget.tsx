@@ -1,8 +1,10 @@
 import { getCategoryMeta } from "@/constants/categories";
 import { useAuth } from "@/context/AuthContext";
+import budgetService from "@/services/budgetService";
 import { useBudgetStore } from "@/store/useBudgetStore";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -10,6 +12,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -17,7 +20,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 export default function AddDailyBudgetScreen() {
@@ -26,35 +29,43 @@ export default function AddDailyBudgetScreen() {
   const params = useLocalSearchParams();
   const editId = params.editId ? parseInt(params.editId as string) : null;
 
-  // Form state
   const [amount, setAmount] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [note, setNote] = useState("");
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
   const [error, setError] = useState("");
 
-  // Store hooks
-  const { addBudget, updateBudget, budgets, isLoading } = useBudgetStore();
+  const { addBudget, updateBudget, budgets } = useBudgetStore();
   const { categories, loadCategories } = useCategoryStore();
 
-  // Load data on mount
   useEffect(() => {
     loadCategories();
-    
-    // If editing, load budget data
+
     if (editId) {
-      const budgetToEdit = budgets.find(b => b.id === editId);
+      const budgetToEdit = budgets.find((b) => b.id === editId);
       if (budgetToEdit) {
         setAmount(budgetToEdit.daily_limit.toString());
-        setSelectedCategory(budgetToEdit.category);
+        setSelectedCategory(budgetToEdit.category ?? null);
         setSelectedDate(new Date(budgetToEdit.date));
+      } else {
+        // Fetch from API if not in store
+        setIsLoadingEdit(true);
+        budgetService
+          .getBudget(editId)
+          .then((b) => {
+            setAmount(b.daily_limit.toString());
+            setSelectedCategory(b.category ?? null);
+            setSelectedDate(new Date(b.date));
+          })
+          .catch(() => Alert.alert("Error", "Gagal memuat data budget"))
+          .finally(() => setIsLoadingEdit(false));
       }
     }
-  }, [editId, loadCategories]);
+  }, [editId]);
 
-  // Filter expense categories
   const expenseCategories = categories.filter((c) => c.type === "expense");
 
   const handleSelectCategory = (category: any) => {
@@ -62,11 +73,9 @@ export default function AddDailyBudgetScreen() {
     setShowCategoryModal(false);
   };
 
-  const handleDateChange = () => {
-    // For simplicity, increment date by 1 day. In a real app, use a date picker library
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + 1);
-    setSelectedDate(newDate);
+  const handleDateChange = (_: any, date?: Date) => {
+    if (Platform.OS === "android") setShowDatePicker(false);
+    if (date) setSelectedDate(date);
   };
 
   const validateForm = (): boolean => {
@@ -87,32 +96,30 @@ export default function AddDailyBudgetScreen() {
 
     try {
       setIsSubmitting(true);
-      const dateStr = selectedDate.toISOString().split("T")[0]; // YYYY-MM-DD
+      const dateStr = selectedDate.toISOString().split("T")[0];
 
       if (editId) {
-        // Update existing budget
         await updateBudget(editId, {
           daily_limit: parseFloat(amount),
           category_id: selectedCategory.id,
           date: dateStr,
         });
-        Alert.alert("✅ Berhasil", "Budget telah diperbarui");
+        Alert.alert("✅ Berhasil", "Budget telah diperbarui", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
       } else {
-        // Create new budget
         await addBudget({
           category_id: selectedCategory.id,
           daily_limit: parseFloat(amount),
           date: dateStr,
         });
-        Alert.alert("✅ Berhasil", "Budget telah ditambahkan");
+        Alert.alert("✅ Berhasil", "Budget telah ditambahkan", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
       }
-
-      // Navigate back after successful save
-      setTimeout(() => {
-        router.back();
-      }, 500);
     } catch (err: any) {
-      const errorMsg = err?.response?.data?.message || "Gagal menyimpan budget";
+      const errorMsg =
+        err?.response?.data?.message || "Gagal menyimpan budget";
       Alert.alert("❌ Gagal", errorMsg);
       console.error("Save error:", err);
     } finally {
@@ -121,10 +128,14 @@ export default function AddDailyBudgetScreen() {
   };
 
   const handleCancel = () => {
-    if (amount || note || selectedCategory) {
+    if (amount || selectedCategory) {
       Alert.alert("Batalkan?", "Perubahan Anda akan hilang", [
         { text: "Lanjutkan", style: "cancel" },
-        { text: "Batalkan", onPress: () => router.back(), style: "destructive" },
+        {
+          text: "Batalkan",
+          onPress: () => router.back(),
+          style: "destructive",
+        },
       ]);
     } else {
       router.back();
@@ -146,6 +157,16 @@ export default function AddDailyBudgetScreen() {
 
   const avatarText = user?.name ? user.name.charAt(0).toUpperCase() : "U";
 
+  if (isLoadingEdit) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#004ac6" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7f9fb" />
@@ -160,12 +181,10 @@ export default function AddDailyBudgetScreen() {
           >
             <Ionicons name="arrow-back" size={22} color="#111827" />
           </TouchableOpacity>
-
           <Text style={styles.headerTitle}>
             {editId ? "Edit Budget" : "Tambah Budget"}
           </Text>
         </View>
-
         <View style={styles.avatarBox}>
           <Text style={styles.avatarText}>{avatarText}</Text>
         </View>
@@ -175,7 +194,6 @@ export default function AddDailyBudgetScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Main Card */}
         <View style={styles.card}>
           {error ? (
             <View style={styles.errorBox}>
@@ -187,10 +205,8 @@ export default function AddDailyBudgetScreen() {
           {/* Amount */}
           <View style={styles.amountSection}>
             <Text style={styles.labelTop}>DAILY LIMIT</Text>
-
             <View style={styles.amountRow}>
               <Text style={styles.rp}>Rp</Text>
-
               <TextInput
                 value={amount}
                 onChangeText={setAmount}
@@ -206,7 +222,6 @@ export default function AddDailyBudgetScreen() {
           {/* Category */}
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>Kategori</Text>
-
             <TouchableOpacity
               style={styles.selectBox}
               onPress={() => setShowCategoryModal(true)}
@@ -215,15 +230,15 @@ export default function AddDailyBudgetScreen() {
               <View style={styles.selectLeft}>
                 <View style={styles.iconBox}>
                   <Text style={styles.categoryEmoji}>
-                    {selectedCategory ? getCategoryIcon(selectedCategory.name) : "📦"}
+                    {selectedCategory
+                      ? getCategoryIcon(selectedCategory.name)
+                      : "📦"}
                   </Text>
                 </View>
-
                 <Text style={styles.selectText}>
                   {selectedCategory ? selectedCategory.name : "Pilih Kategori"}
                 </Text>
               </View>
-
               <MaterialIcons
                 name="keyboard-arrow-down"
                 size={24}
@@ -235,10 +250,9 @@ export default function AddDailyBudgetScreen() {
           {/* Date */}
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>Tanggal Mulai</Text>
-
             <TouchableOpacity
               style={styles.inputBox}
-              onPress={handleDateChange}
+              onPress={() => setShowDatePicker(true)}
               disabled={isSubmitting}
             >
               <MaterialIcons name="calendar-today" size={20} color="#6b7280" />
@@ -246,7 +260,27 @@ export default function AddDailyBudgetScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Buttons */}
+          {/* Inline DatePicker for iOS */}
+          {showDatePicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={handleDateChange}
+              locale="id-ID"
+            />
+          )}
+          {/* iOS confirm button */}
+          {showDatePicker && Platform.OS === "ios" && (
+            <TouchableOpacity
+              style={styles.dateConfirmBtn}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <Text style={styles.dateConfirmText}>Pilih</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Save Button */}
           <TouchableOpacity
             style={[styles.saveBtn, isSubmitting && { opacity: 0.6 }]}
             onPress={handleSave}
@@ -270,10 +304,8 @@ export default function AddDailyBudgetScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Tip */}
         <View style={styles.tipBox}>
           <MaterialIcons name="info" size={22} color="#15803d" />
-
           <Text style={styles.tipText}>
             <Text style={{ fontWeight: "700" }}>💡 Tips:</Text> Atur budget
             harian untuk setiap kategori pengeluaran agar pengelolaan keuangan
@@ -305,7 +337,8 @@ export default function AddDailyBudgetScreen() {
                 <TouchableOpacity
                   style={[
                     styles.categoryItem,
-                    selectedCategory?.id === item.id && styles.categoryItemSelected,
+                    selectedCategory?.id === item.id &&
+                      styles.categoryItemSelected,
                   ]}
                   onPress={() => handleSelectCategory(item)}
                 >
@@ -321,7 +354,11 @@ export default function AddDailyBudgetScreen() {
                     {item.name}
                   </Text>
                   {selectedCategory?.id === item.id && (
-                    <MaterialIcons name="check-circle" size={20} color="#004ac6" />
+                    <MaterialIcons
+                      name="check-circle"
+                      size={20}
+                      color="#004ac6"
+                    />
                   )}
                 </TouchableOpacity>
               )}
@@ -338,11 +375,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f7f9fb",
   },
-
   scrollContent: {
     paddingBottom: 40,
   },
-
   header: {
     paddingHorizontal: 18,
     paddingVertical: 14,
@@ -350,13 +385,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
   },
-
   backBtn: {
     width: 42,
     height: 42,
@@ -366,13 +399,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-
   headerTitle: {
     fontSize: 20,
     fontWeight: "800",
     color: "#004ac6",
   },
-
   avatarBox: {
     width: 42,
     height: 42,
@@ -381,13 +412,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   avatarText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
   },
-
   card: {
     backgroundColor: "#ffffff",
     marginHorizontal: 18,
@@ -399,7 +428,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-
   errorBox: {
     backgroundColor: "#fee2e2",
     borderRadius: 12,
@@ -409,19 +437,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-
   errorText: {
     color: "#dc2626",
     fontSize: 13,
     fontWeight: "600",
     flex: 1,
   },
-
   amountSection: {
     alignItems: "center",
     marginBottom: 28,
   },
-
   labelTop: {
     fontSize: 11,
     fontWeight: "700",
@@ -429,12 +454,10 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     marginBottom: 8,
   },
-
   amountRow: {
     flexDirection: "row",
     alignItems: "flex-end",
   },
-
   rp: {
     fontSize: 28,
     fontWeight: "800",
@@ -442,7 +465,6 @@ const styles = StyleSheet.create({
     marginRight: 6,
     marginBottom: 6,
   },
-
   amountInput: {
     fontSize: 42,
     fontWeight: "900",
@@ -450,11 +472,9 @@ const styles = StyleSheet.create({
     minWidth: 180,
     textAlign: "center",
   },
-
   fieldWrap: {
     marginBottom: 18,
   },
-
   fieldLabel: {
     fontSize: 14,
     fontWeight: "600",
@@ -462,7 +482,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4,
   },
-
   selectBox: {
     backgroundColor: "#f1f5f9",
     borderRadius: 18,
@@ -471,12 +490,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-
   selectLeft: {
     flexDirection: "row",
     alignItems: "center",
   },
-
   iconBox: {
     width: 42,
     height: 42,
@@ -486,17 +503,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-
   categoryEmoji: {
     fontSize: 20,
   },
-
   selectText: {
     fontSize: 15,
     fontWeight: "700",
     color: "#111827",
   },
-
   inputBox: {
     backgroundColor: "#f1f5f9",
     borderRadius: 18,
@@ -505,19 +519,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-
   inputText: {
     marginLeft: 10,
     fontSize: 15,
     fontWeight: "600",
     color: "#111827",
   },
-
-  noteInput: {
-    flex: 1,
-    marginLeft: 10,
+  dateConfirmBtn: {
+    backgroundColor: "#004ac6",
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    marginBottom: 12,
   },
-
+  dateConfirmText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
   saveBtn: {
     backgroundColor: "#004ac6",
     borderRadius: 18,
@@ -525,13 +544,11 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: "center",
   },
-
   saveText: {
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "800",
   },
-
   cancelBtn: {
     borderWidth: 1.5,
     borderColor: "#d1d5db",
@@ -540,13 +557,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
     alignItems: "center",
   },
-
   cancelText: {
     color: "#374151",
     fontSize: 16,
     fontWeight: "700",
   },
-
   tipBox: {
     marginHorizontal: 18,
     marginTop: 18,
@@ -556,7 +571,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
   },
-
   tipText: {
     flex: 1,
     marginLeft: 10,
@@ -564,22 +578,17 @@ const styles = StyleSheet.create({
     color: "#166534",
     lineHeight: 20,
   },
-
-  /* Category Modal */
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
   },
-
   modalContent: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "80%",
-    paddingTop: 0,
   },
-
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -589,13 +598,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: "#111827",
   },
-
   categoryItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -604,16 +611,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
-
   categoryItemSelected: {
     backgroundColor: "#f0f4ff",
   },
-
   categoryItemEmoji: {
     fontSize: 24,
     marginRight: 12,
   },
-
   categoryItemText: {
     flex: 1,
     fontSize: 15,

@@ -1,15 +1,14 @@
 import { useAuth } from "@/context/AuthContext";
+import { ACCENT_COLORS, useAppTheme } from "@/context/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import {
-  Bell,
   Edit3,
   Languages,
   LogOut,
   Moon,
   Palette,
-  Plus,
   Wallet,
 } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
@@ -32,10 +31,13 @@ const DEFAULT_AVATAR = "https://i.pravatar.cc/300?img=15";
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { accentColor, setAccentColor } = useAppTheme();
+
   const [darkMode, setDarkMode] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [isPickingImage, setIsPickingImage] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [selectedColor, setSelectedColor] = useState(accentColor);
 
   const avatarStorageKey = useMemo(
     () => `profile_avatar_${user?.id ?? "guest"}`,
@@ -49,53 +51,34 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     let isMounted = true;
-
-    const loadAvatar = async () => {
-      try {
-        const storedAvatar = await AsyncStorage.getItem(avatarStorageKey);
-        if (!isMounted) {
-          return;
-        }
-
-        setAvatarUri(storedAvatar || fallbackAvatarUri);
-      } catch {
-        if (isMounted) {
-          setAvatarUri(fallbackAvatarUri);
-        }
-      }
-    };
-
-    loadAvatar();
-
-    return () => {
-      isMounted = false;
-    };
+    AsyncStorage.getItem(avatarStorageKey).then((stored) => {
+      if (isMounted) setAvatarUri(stored || fallbackAvatarUri);
+    }).catch(() => {
+      if (isMounted) setAvatarUri(fallbackAvatarUri);
+    });
+    return () => { isMounted = false; };
   }, [avatarStorageKey, fallbackAvatarUri]);
+
+  // Keep local selectedColor in sync if accentColor changes externally
+  useEffect(() => {
+    setSelectedColor(accentColor);
+  }, [accentColor]);
 
   const handlePickImage = async () => {
     try {
       setIsPickingImage(true);
-
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
-        Alert.alert(
-          "Izin Ditolak",
-          "Aplikasi membutuhkan izin galeri untuk mengganti foto profil."
-        );
+        Alert.alert("Izin Ditolak", "Aplikasi membutuhkan izin galeri untuk mengganti foto profil.");
         return;
       }
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
       });
-
-      if (result.canceled || !result.assets?.length) {
-        return;
-      }
-
+      if (result.canceled || !result.assets?.length) return;
       const selectedUri = result.assets[0].uri;
       setAvatarUri(selectedUri);
       await AsyncStorage.setItem(avatarStorageKey, selectedUri);
@@ -106,12 +89,14 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleSaveColor = async () => {
+    await setAccentColor(selectedColor);
+    Alert.alert("Tersimpan", "Warna aksen berhasil diperbarui!");
+  };
+
   const handleLogout = () => {
     Alert.alert("Keluar Sesi", "Yakin ingin keluar dari akun ini?", [
-      {
-        text: "Batal",
-        style: "cancel",
-      },
+      { text: "Batal", style: "cancel" },
       {
         text: "Keluar",
         style: "destructive",
@@ -134,32 +119,13 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f7f9fb" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Image
-            source={{ uri: displayAvatarUri }}
-            style={styles.smallAvatar}
-          />
-          <Text style={styles.logo}>SAKU</Text>
-        </View>
-
-        <TouchableOpacity style={styles.iconBtn}>
-          <Bell size={22} color="#44474a" />
-        </TouchableOpacity>
-      </View>
-
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile */}
         <View style={styles.profileSection}>
           <View style={styles.avatarWrapper}>
-            <Image
-              source={{ uri: displayAvatarUri }}
-              style={styles.avatar}
-            />
-
+            <Image source={{ uri: displayAvatarUri }} style={[styles.avatar, { borderColor: accentColor }]} />
             <TouchableOpacity
-              style={styles.editBtn}
+              style={[styles.editBtn, { backgroundColor: accentColor }]}
               onPress={handlePickImage}
               disabled={isPickingImage}
             >
@@ -179,14 +145,13 @@ export default function SettingsScreen() {
         <View style={styles.list}>
           <View style={styles.card}>
             <View style={styles.rowLeft}>
-              <Moon size={20} color="#004ac6" />
+              <Moon size={20} color={accentColor} />
               <Text style={styles.cardTitle}>Mode Gelap</Text>
             </View>
-
             <Switch
               value={darkMode}
               onValueChange={setDarkMode}
-              trackColor={{ false: "#dfe3e7", true: "#2563eb" }}
+              trackColor={{ false: "#dfe3e7", true: accentColor }}
               thumbColor="#fff"
             />
           </View>
@@ -196,7 +161,6 @@ export default function SettingsScreen() {
               <Languages size={20} color="#22c55e" />
               <Text style={styles.cardTitle}>Bahasa</Text>
             </View>
-
             <Text style={styles.valueText}>Indonesia (ID)</Text>
           </TouchableOpacity>
 
@@ -205,25 +169,53 @@ export default function SettingsScreen() {
               <Wallet size={20} color="#ef4444" />
               <Text style={styles.cardTitle}>Mata Uang</Text>
             </View>
-
             <Text style={styles.valueText}>Rupiah (IDR)</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Accent */}
-        <View style={styles.colorCard}>
+        {/* Color Picker */}
+        <View style={[styles.colorCard, { borderColor: accentColor }]}>
           <View style={styles.rowLeft}>
-            <Palette size={20} color="#004ac6" />
+            <Palette size={20} color={accentColor} />
             <Text style={styles.colorTitle}>Aksen Warna</Text>
           </View>
 
-          <View style={styles.colorRow}>
-            <TouchableOpacity style={styles.activeColor} />
-
-            <TouchableOpacity style={styles.addColor}>
-              <Plus size={16} color="#888" />
-            </TouchableOpacity>
+          <View style={styles.colorGrid}>
+            {ACCENT_COLORS.map((c) => {
+              const isSelected = selectedColor === c.value;
+              return (
+                <TouchableOpacity
+                  key={c.value}
+                  onPress={() => setSelectedColor(c.value)}
+                  style={[
+                    styles.colorSwatch,
+                    { backgroundColor: c.value },
+                    isSelected && styles.colorSwatchSelected,
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  {isSelected && (
+                    <View style={styles.checkMark} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
+
+          <View style={styles.colorPreviewRow}>
+            <View style={[styles.colorPreviewDot, { backgroundColor: selectedColor }]} />
+            <Text style={styles.colorPreviewLabel}>
+              {ACCENT_COLORS.find((c) => c.value === selectedColor)?.label ?? "Custom"}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.saveColorBtn, { backgroundColor: selectedColor }]}
+            onPress={handleSaveColor}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.saveColorText}>Simpan Warna</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Logout */}
@@ -242,9 +234,7 @@ export default function SettingsScreen() {
           )}
         </TouchableOpacity>
 
-        <Text style={styles.version}>
-          VERSION 1.O • SAKU
-        </Text>
+        <Text style={styles.version}>VERSION 1.0 • SAKU</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -254,39 +244,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f7f9fb",
-  },
-
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  smallAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    marginRight: 10,
-    borderWidth: 2,
-    borderColor: "#2563eb",
-  },
-
-  logo: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#004ac6",
-  },
-
-  iconBtn: {
-    padding: 8,
   },
 
   profileSection: {
@@ -303,13 +260,13 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110,
     borderRadius: 55,
+    borderWidth: 3,
   },
 
   editBtn: {
     position: "absolute",
     bottom: 0,
     right: 0,
-    backgroundColor: "#004ac6",
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -370,37 +327,78 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     padding: 20,
     borderWidth: 2,
-    borderColor: "#2563eb",
   },
 
   colorTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
     color: "#111",
   },
 
-  colorRow: {
+  colorGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
     marginTop: 18,
-    alignItems: "center",
   },
 
-  activeColor: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#004ac6",
-    marginRight: 14,
-  },
-
-  addColor: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#ccc",
+  colorSwatch: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  colorSwatchSelected: {
+    borderWidth: 3,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+
+  checkMark: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#fff",
+  },
+
+  colorPreviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 16,
+    gap: 8,
+  },
+
+  colorPreviewDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+
+  colorPreviewLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#444",
+  },
+
+  saveColorBtn: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  saveColorText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 14,
+    letterSpacing: 0.5,
   },
 
   logoutBtn: {

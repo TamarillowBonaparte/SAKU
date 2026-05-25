@@ -1,11 +1,6 @@
 /**
  * Receipt Scanning Service
- * Supports: Indomaret, Alfamart, warung, restaurant, etc.
- *
- * Key format handled:
- *   "NAMA BARANG    QTY  HARGA/PCS   JUMLAH"   ← Indomaret (no 'x')
- *   "NAMA BARANG  QTY x HARGA   TOTAL"          ← Mini-market / warung
- *   "NAMA BARANG              HARGA"             ← Restaurant / simple
+ * Handles: Indomaret, Alfamart, warung, restaurant, café, minimarket, dll.
  */
 
 import apiClient from "./api";
@@ -33,78 +28,52 @@ export async function initializeOCR() {
   return;
 }
 
-// ─── Image Preprocessing (web only) ──────────────────────────────────────────
+// ─── Image Preprocessing (web only) ─────────────────────────────────────────
 async function preprocessImage(imageUri: string): Promise<string> {
   if (typeof document === "undefined") return imageUri;
-
   return new Promise((resolve) => {
     const img = new Image();
-
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      // Increase to 2400px so Tesseract gets more detail
       const maxSide = Math.max(img.width, img.height);
       const scale = Math.min(1, 2400 / maxSide);
-
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
-
       const ctx = canvas.getContext("2d");
       if (!ctx) { resolve(imageUri); return; }
-
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
-
       for (let i = 0; i < data.length; i += 4) {
-        // Grayscale
-        const gray = Math.round(
-          0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2],
-        );
-        // Increase contrast (stretch histogram) instead of hard binarize
-        // This preserves detail that Tesseract uses for LSTM training
-        const enhanced = Math.min(255, Math.max(0, (gray - 100) * 1.6));
-        data[i] = enhanced;
-        data[i + 1] = enhanced;
-        data[i + 2] = enhanced;
+        const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+        const enhanced = Math.min(255, Math.max(0, (gray - 90) * 1.7));
+        data[i] = enhanced; data[i + 1] = enhanced; data[i + 2] = enhanced;
       }
-
       ctx.putImageData(imageData, 0, 0);
       resolve(canvas.toDataURL("image/png"));
     };
-
     img.onerror = () => resolve(imageUri);
     img.src = imageUri;
   });
 }
 
-// ─── Main entry ───────────────────────────────────────────────────────────────
-export async function processReceiptImage(
-  imageUri: string,
-): Promise<ReceiptData> {
+// ─── Main entry ──────────────────────────────────────────────────────────────
+export async function processReceiptImage(imageUri: string): Promise<ReceiptData> {
   try {
-    console.log("Processing receipt image...");
     const processedUri = await preprocessImage(imageUri);
     const { rawText, confidence } = await requestOcrText(processedUri);
-    if (!rawText?.trim()) {
-      return emptyResult("Tidak ada teks yang terdeteksi pada gambar");
-    }
-    console.log("Raw OCR text:\n", rawText);
+    if (!rawText?.trim()) return emptyResult("Tidak ada teks yang terdeteksi pada gambar");
+    console.log("Raw OCR:\n", rawText);
     return parseReceiptText(rawText, confidence);
   } catch (error: any) {
-    const msg = error?.message || "Gagal memproses gambar struk";
-    return emptyResult(msg);
+    return emptyResult(error?.message || "Gagal memproses gambar struk");
   }
 }
 
-// ─── API call ─────────────────────────────────────────────────────────────────
-async function requestOcrText(
-  imageUri: string,
-): Promise<{ rawText: string; confidence: number }> {
+// ─── API Call ────────────────────────────────────────────────────────────────
+async function requestOcrText(imageUri: string): Promise<{ rawText: string; confidence: number }> {
   try {
     const formData = new FormData();
-
     if (typeof document !== "undefined") {
       const response = await fetch(imageUri);
       const blob = await response.blob();
@@ -112,8 +81,7 @@ async function requestOcrText(
     } else {
       const ext = imageUri.split(".").pop()?.toLowerCase() ?? "jpg";
       const mimeType = ext === "png" ? "image/png" : "image/jpeg";
-      const fileName = ext === "png" ? "receipt.png" : "receipt.jpg";
-      formData.append("image", { uri: imageUri, name: fileName, type: mimeType } as any);
+      formData.append("image", { uri: imageUri, name: `receipt.${ext}`, type: mimeType } as any);
     }
 
     const result = await apiClient.post("/receipts/scan", formData, {
@@ -123,57 +91,42 @@ async function requestOcrText(
 
     const d = result?.data?.data;
     if (!d) return { rawText: "", confidence: 0 };
-
     const rawText = d.raw_text || d.rawText || "";
     const confidence = typeof d.confidence === "number" ? d.confidence : 0;
-    console.log(`OCR: ${rawText.length} chars, confidence: ${confidence}%`);
     return { rawText: String(rawText), confidence };
   } catch (error: any) {
     const status = error?.response?.status;
     const msg = error?.response?.data?.error || error?.response?.data?.message || "";
-
     if (status === 500) throw new Error(msg ? `OCR error: ${msg}` : "Server error saat memproses gambar");
     if (status === 400) throw new Error(msg || "Format gambar tidak valid");
     if (status === 401) throw new Error("Sesi habis, silakan login ulang");
-    if (error?.code === "ECONNABORTED") throw new Error("Timeout — coba gambar lebih kecil / cahaya lebih terang");
+    if (error?.code === "ECONNABORTED") throw new Error("Timeout — coba gambar lebih kecil");
     if (error?.message === "Network Error" || error?.code === "ECONNREFUSED")
       throw new Error("Tidak dapat terhubung ke server. Pastikan backend berjalan.");
     throw error;
   }
 }
 
-// ─── OCR text normalisation ───────────────────────────────────────────────────
-/**
- * Clean up common Tesseract (eng) mis-reads on Indonesian receipts.
- */
+// ─── Normalization ───────────────────────────────────────────────────────────
 function normalizeText(text: string): string {
   return text
-    // Hard spaces → normal spaces
     .replace(/\u00a0/g, " ")
-    // Various dash chars → hyphen
     .replace(/[—–]/g, "-")
-    // Vertical bar misread as I
     .replace(/\|/g, "I")
-    // OCR sometimes adds stray ~ or ` around numbers
     .replace(/[`~]/g, "")
-    // Collapse multiple spaces to single (preserve line breaks)
     .replace(/[ \t]+/g, " ")
-    // Trim each line
     .split("\n")
     .map((l) => l.trim())
     .join("\n");
 }
 
-// ─── Number helpers ───────────────────────────────────────────────────────────
-
-/**
- * Parse an Indonesian-format number string to a JS number.
- * Handles: "3.500", "25.000", "1.000.000", "25,50", "1.000.000,50"
- * Also handles OCR artifact: "3 500" (space as thousands sep)
- */
+// ─── Number Parser ───────────────────────────────────────────────────────────
 function parseNum(raw: string): number | null {
   if (!raw) return null;
-  let s = raw.trim().replace(/^Rp\.?\s*/i, "").replace(/\s/g, "");
+  let s = raw.trim()
+    .replace(/^Rp\.?\s*/i, "")
+    .replace(/\s/g, "")
+    .replace(/[^\d.,]/g, "");
   if (!s || !/\d/.test(s)) return null;
 
   const dots = (s.match(/\./g) ?? []).length;
@@ -186,64 +139,58 @@ function parseNum(raw: string): number | null {
     return isNaN(n) ? null : n;
   }
   if (lastComma > lastDot) {
-    // 1.000,50 → decimal comma
     s = s.replace(/\./g, "").replace(",", ".");
   } else {
     if (dots === 1 && !commas && s.slice(lastDot + 1).length === 3) {
-      // 25.000 → thousands dot
       s = s.replace(".", "");
     } else if (dots > 1) {
-      // 1.000.000 → strip all dots
       s = s.replace(/\./g, "").replace(/,/g, "");
     }
-    // else single dot with 1-2 decimals → real decimal, leave it
   }
 
   const v = parseFloat(s);
   return isNaN(v) ? null : Math.round(v);
 }
 
-/** Find all number-like tokens in a line and return their parsed values + positions. */
-interface Token { raw: string; val: number; start: number }
+interface NumToken { raw: string; val: number; start: number; end: number }
 
-function findNumTokens(line: string): Token[] {
-  const tokens: Token[] = [];
-  // Match: 1.000.000 / 25.000 / 3,500 / 25000 — at least 3 digits total
-  const re = /(?<!\w)([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?|\d+)(?!\w)/g;
+function findNumTokens(line: string): NumToken[] {
+  const tokens: NumToken[] = [];
+  const re = /(?<!\w)([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?|\d{4,})(?!\w)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(line)) !== null) {
     const val = parseNum(m[1]);
-    if (val !== null && val > 0) tokens.push({ raw: m[1], val, start: m.index });
+    if (val !== null && val > 0) {
+      tokens.push({ raw: m[1], val, start: m.index, end: m.index + m[1].length });
+    }
   }
   return tokens;
 }
 
-// ─── Store name ───────────────────────────────────────────────────────────────
+// ─── Store Name ──────────────────────────────────────────────────────────────
 const KNOWN_STORES = [
-  "INDOMARET", "ALFAMART", "ALFAMIDI", "CIRCLE K",
-  "LAWSON", "FAMILY MART", "MINIMARKET", "SUPERMARKET",
-  "HYPERMART", "TRANSMART", "CARREFOUR", "GIANT",
-  "HERO", "SUPERINDO", "LOTTEMART", "MCDONALD",
-  "KFC", "PIZZA HUT", "STARBUCKS", "DOMINO",
+  "INDOMARET", "ALFAMART", "ALFAMIDI", "CIRCLE K", "LAWSON",
+  "FAMILY MART", "MINIMARKET", "SUPERMARKET", "HYPERMART",
+  "TRANSMART", "CARREFOUR", "GIANT", "HERO", "SUPERINDO",
+  "LOTTEMART", "MCDONALD", "KFC", "PIZZA HUT", "STARBUCKS",
+  "DOMINO", "DUNKIN",
 ];
 
 function extractStoreName(lines: string[]): string | null {
-  // First check top 5 lines for known brands
   const top5 = lines.slice(0, 5).map((l) => l.toUpperCase());
   for (const store of KNOWN_STORES) {
     if (top5.some((l) => l.includes(store))) return store;
   }
-  // Fallback: first line that is all-caps text without long numbers
-  const candidate = lines
-    .slice(0, 5)
-    .find((l) => !/\d{5,}/.test(l) && !/\d{1,2}[/\-]\d{1,2}/.test(l) && l.length >= 3);
+  const candidate = lines.slice(0, 5).find(
+    (l) => !/\d{5,}/.test(l) && !/\d{1,2}[/\-]\d{1,2}/.test(l) && l.length >= 3
+  );
   return candidate ?? null;
 }
 
-// ─── Date ─────────────────────────────────────────────────────────────────────
+// ─── Date ────────────────────────────────────────────────────────────────────
 function extractDate(text: string): string | null {
   const patterns = [
-    /(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})/,
+    /(\d{1,2}[\/\-.]\\d{1,2}[\/\-.]\d{2,4})/,
     /(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|Mei|May|Jun|Jul|Agu|Aug|Sep|Okt|Oct|Nov|Des|Dec)\w*\s+\d{2,4})/i,
   ];
   for (const p of patterns) {
@@ -253,213 +200,284 @@ function extractDate(text: string): string | null {
   return null;
 }
 
-// ─── Financials ───────────────────────────────────────────────────────────────
+// ─── Total & Financial Extraction ─────────────────────────────────────────
 function extractFinancials(text: string, lines: string[]) {
-  const textLow = text.toLowerCase();
-
-  const totalPatterns: RegExp[] = [
-    /grand\s*total\s*[:\s]*([\d.,]+)/i,
-    /total\s+bayar\s*[:\s]*([\d.,]+)/i,
-    /total\s+belanja\s*[:\s]*([\d.,]+)/i,
-    /(?<!\w)total\s*[:\s]*([\d.,]+)/i,
-    /jumlah\s*(?:yang\s+)?(?:harus\s+)?dibayar\s*[:\s]*([\d.,]+)/i,
-    /(?<!\w)jumlah\s*[:\s]*([\d.,]+)/i,
-    /tagihan\s*[:\s]*([\d.,]+)/i,
-    /bayar\s*[:\s]*([\d.,]+)/i,
-    /amount\s+due\s*[:\s]*([\d.,]+)/i,
+  const TOTAL_PATTERNS: RegExp[] = [
+    /grand\s*total[\s:=]*([0-9][0-9.,\s]*)/i,
+    /total\s+bayar[\s:=]*([0-9][0-9.,\s]*)/i,
+    /total\s+belanja[\s:=]*([0-9][0-9.,\s]*)/i,
+    /^total[\s:=]*([0-9][0-9.,\s]*)$/im,
+    /jumlah\s+(?:yang\s+)?(?:harus\s+)?(?:di)?bayar[\s:=]*([0-9][0-9.,\s]*)/i,
+    /^jumlah[\s:=]*([0-9][0-9.,\s]*)$/im,
+    /tagihan[\s:=]*([0-9][0-9.,\s]*)/i,
+    /amount\s+due[\s:=]*([0-9][0-9.,\s]*)/i,
   ];
 
-  const subtotalPatterns: RegExp[] = [
-    /sub\s*total\s*[:\s]*([\d.,]+)/i,
-    /subtotal\s*[:\s]*([\d.,]+)/i,
+  const SUBTOTAL_PATTERNS: RegExp[] = [
+    /sub\s*total[\s:=]*([0-9][0-9.,\s]*)/i,
+    /subtotal[\s:=]*([0-9][0-9.,\s]*)/i,
   ];
 
-  const taxPatterns: RegExp[] = [
-    /(?:ppn|pajak|tax)\s*(?:\d+\s*%?)?\s*[:\s]*([\d.,]+)/i,
+  const TAX_PATTERNS: RegExp[] = [
+    /(?:ppn|pajak|tax)\s*(?:\d+\s*%?)?\s*[\s:=]*([0-9][0-9.,\s]*)/i,
   ];
 
   const tryPatterns = (patterns: RegExp[]): number | null => {
     for (const p of patterns) {
-      const m = text.match(p);
-      if (m?.[1]) {
-        const v = parseNum(m[1]);
-        if (v && v >= 100) return v;
+      const matches = [...text.matchAll(new RegExp(p.source, p.flags.includes("g") ? p.flags : p.flags + "g"))];
+      for (const m of matches) {
+        if (m[1]) {
+          const cleaned = m[1].trim().replace(/\s+/g, "");
+          const v = parseNum(cleaned);
+          if (v && v >= 100) return v;
+        }
       }
     }
     return null;
   };
 
-  let totalAmount = tryPatterns(totalPatterns);
-  const subtotal   = tryPatterns(subtotalPatterns);
-  const tax        = tryPatterns(taxPatterns);
+  let totalAmount = tryPatterns(TOTAL_PATTERNS);
+  const subtotal   = tryPatterns(SUBTOTAL_PATTERNS);
+  const tax        = tryPatterns(TAX_PATTERNS);
 
-  // Fallback 1: scan lines that contain "total/jumlah/bayar" keyword
   if (!totalAmount) {
+    const TOTAL_KW = /\b(grand\s*total|total\s+bayar|total\s+belanja|total|jumlah\s+bayar|jumlah|tagihan)\b/i;
     for (const line of lines) {
-      if (/\b(total|jumlah|bayar|tagihan)\b/i.test(line)) {
-        const tokens = findNumTokens(line);
-        const big = tokens.filter((t) => t.val >= 1000);
-        if (big.length > 0) {
-          totalAmount = Math.max(...big.map((t) => t.val));
+      if (TOTAL_KW.test(line)) {
+        const tokens = findNumTokens(line).filter((t) => t.val >= 1000);
+        if (tokens.length > 0) {
+          totalAmount = Math.max(...tokens.map((t) => t.val));
           break;
         }
       }
     }
   }
 
-  // Fallback 2: TUNAI (cash) can tell us total (total = tunai - kembali)
   if (!totalAmount) {
-    const tunaiMatch = text.match(/tunai\s*[:\s]*([\d.,]+)/i);
-    const kembaliMatch = text.match(/kembali\s*[:\s]*([\d.,]+)/i);
-    if (tunaiMatch && kembaliMatch) {
-      const tunai = parseNum(tunaiMatch[1]);
-      const kembali = parseNum(kembaliMatch[1]);
-      if (tunai && kembali) totalAmount = tunai - kembali;
+    const tunaiM = text.match(/tunai[\s:=]*([0-9][0-9.,\s]*)/i);
+    const kembaliM = text.match(/kembali[\s:=]*([0-9][0-9.,\s]*)/i);
+    if (tunaiM && kembaliM) {
+      const tunai = parseNum(tunaiM[1].trim().replace(/\s+/g, ""));
+      const kembali = parseNum(kembaliM[1].trim().replace(/\s+/g, ""));
+      if (tunai && kembali && tunai > kembali) totalAmount = tunai - kembali;
     }
   }
 
-  // Fallback 3: largest number in the whole text
+  if (!totalAmount && subtotal && tax) {
+    totalAmount = subtotal + tax;
+  }
+
   if (!totalAmount) {
     const allNums = findNumTokens(text).filter((t) => t.val >= 1000);
     if (allNums.length > 0) totalAmount = Math.max(...allNums.map((t) => t.val));
   }
 
-  return { totalAmount, subtotal, tax };
+  return { totalAmount: totalAmount ?? null, subtotal: subtotal ?? null, tax: tax ?? null };
 }
 
-// ─── Item extraction ──────────────────────────────────────────────────────────
-
-/** Keywords that appear on non-item lines — use exact-word matching */
-const NON_ITEM_EXACT: string[] = [
-  "total", "grand total", "sub total", "subtotal",
-  "jumlah", "jumlah bayar", "total bayar", "tagihan",
-  "pembayaran", "bayar", "kembali", "kembalian",
-  "tunai", "cash", "debit", "kredit", "kartu",
-  "ppn", "pajak", "tax", "diskon", "discount",
-  "kasir", "operator", "pelayan", "pegawai",
-  "toko", "cabang", "alamat", "jl", "jalan", "telp", "telepon", "hp",
-  "no struk", "no.", "nomor", "struk",
-  "tanggal", "tgl", "jam", "waktu", "date", "time",
-  "terima kasih", "thank you", "selamat", "terimakasih",
-  "member", "poin", "point", "saldo",
-  "kode", "void", "refund", "exchange",
+// ─── Non-item line filter ─────────────────────────────────────────────────────
+const NON_ITEM_STARTS: RegExp[] = [
+  /^grand\s*total/i,
+  /^total\s*(bayar|belanja)?$/i,
+  /^sub\s*total/i,
+  /^subtotal/i,
+  /^jumlah(\s+(bayar|yang|harus|dibayar))?/i,
+  /^tagihan/i,
+  /^bayar/i,
+  /^tunai/i,
+  /^cash/i,
+  /^kembali/i,
+  /^kembalian/i,
+  /^debit/i,
+  /^kredit/i,
+  /^kartu/i,
+  /^ppn/i,
+  /^pajak/i,
+  /^tax/i,
+  /^diskon/i,
+  /^discount/i,
+  /^kasir/i,
+  /^operator/i,
+  /^pelayan/i,
+  /^no\s*[\.:]/i,
+  /^nomor/i,
+  /^struk/i,
+  /^tanggal/i,
+  /^tgl/i,
+  /^jam\s/i,
+  /^waktu/i,
+  /^date/i,
+  /^time/i,
+  /^terima\s+kasih/i,
+  /^thank\s+you/i,
+  /^member/i,
+  /^poin/i,
+  /^point/i,
+  /^saldo/i,
+  /^kode/i,
+  /^void/i,
+  /^refund/i,
+  /^jl[.\s]/i,
+  /^jalan/i,
+  /^telp/i,
+  /^hp[\s:]/i,
+  /^alamat/i,
+  /^cabang/i,
+  /^toko/i,
+  /^npwp/i,
+  /^www\./i,
+  /^http/i,
 ];
 
 function isNonItemLine(line: string): boolean {
   const l = line.toLowerCase().trim();
-  return NON_ITEM_EXACT.some((kw) => {
-    // Exact match or starts-with (e.g. "total bayar 25.000" starts with "total")
-    return l === kw || l.startsWith(kw + " ") || l.startsWith(kw + ":") || l === kw;
-  });
+  if (l.length < 3 || /^[-=*_\s]+$/.test(l)) return true;
+  if (/^\d+$/.test(l)) return true;
+  return NON_ITEM_STARTS.some((re) => re.test(l));
 }
 
 function cleanDesc(s: string): string {
   return s
-    .replace(/[*_=|\\^]/g, "")  // Remove OCR artifacts
+    .replace(/[*_=|\\^]+/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .substring(0, 60);
 }
 
+// ─── Item Extraction (IMPROVED — more lenient) ───────────────────────────────
 function extractItems(lines: string[], totalAmount: number | null): ReceiptItem[] {
   const items: ReceiptItem[] = [];
-  const maxAmt = totalAmount ? totalAmount * 1.05 : Infinity;
+  const maxAmt = totalAmount ? totalAmount * 1.1 : Infinity; // lebih longgar 110%
 
   for (const line of lines) {
     if (line.length < 3) continue;
     if (isNonItemLine(line)) continue;
 
     const tokens = findNumTokens(line);
-    if (tokens.length === 0) continue;
 
-    // The last token is the line amount (total price for this item)
-    const lastTok = tokens[tokens.length - 1];
-    const amount = lastTok.val;
+    // CASE 1: Baris dengan angka — coba deteksi sebagai item
+    if (tokens.length > 0) {
+      const lastTok = tokens[tokens.length - 1];
+      const amount = lastTok.val;
 
-    // Skip if amount looks like a date/code or is unreasonably large
-    if (amount < 100 || amount >= maxAmt) continue;
+      // Skip barcode murni atau angka terlalu besar
+      if (/^\d{6,}$/.test(lastTok.raw)) continue;
+      // Minimal Rp 100 (longgar untuk item murah)
+      if (amount < 100 || amount > maxAmt) continue;
 
-    // Description = text before the first numeric token
-    const descRaw = line.substring(0, tokens[0].start).trim();
-    const desc = cleanDesc(descRaw);
+      const descRaw = line.substring(0, tokens[0].start).trim();
+      const desc = cleanDesc(descRaw);
 
-    // Must have at least 2 chars and not be purely numeric
-    if (desc.length < 2 || /^\d+$/.test(desc)) continue;
+      if (desc.length < 2 || /^\d+$/.test(desc)) continue;
 
-    // ── Pattern A: NAME  QTY x UNIT  TOTAL ──────────────────────────────────
-    // e.g. "AQUA 600ML 2 x 3.500 7.000"
-    const pA = /^(.+?)\s+(\d{1,3})\s*[xX@]\s*([\d.,]+)\s+([\d.,]+)\s*$/.exec(line);
-    if (pA) {
-      const d = cleanDesc(pA[1]);
-      const qty = parseInt(pA[2]);
-      const unit = parseNum(pA[3]);
-      const amt = parseNum(pA[4]);
-      if (d.length >= 2 && amt && amt < maxAmt) {
-        items.push({ description: d, qty, unitPrice: unit, amount: amt });
-        continue;
-      }
-    }
-
-    // ── Pattern B: NAME  QTY  UNIT  TOTAL (Indomaret style, no 'x') ─────────
-    // e.g. "INDOMIE GRG 2 2.800 5.600"
-    // Validate by checking qty*unit ≈ total
-    if (tokens.length >= 3) {
-      const potQty  = tokens[tokens.length - 3].val;
-      const potUnit = tokens[tokens.length - 2].val;
-
-      if (
-        Number.isInteger(potQty) && potQty >= 1 && potQty <= 99 &&
-        potUnit >= 100
-      ) {
-        const expected = potQty * potUnit;
-        if (Math.abs(expected - amount) / Math.max(amount, 1) <= 0.06) {
-          items.push({ description: desc, qty: potQty, unitPrice: potUnit, amount });
+      // Pattern A: NAME  QTY x UNIT  TOTAL
+      const pA = /^(.+?)\s+(\d{1,3})\s*[xX@]\s*([\d.,]+)\s+([\d.,]+)\s*$/.exec(line);
+      if (pA) {
+        const d = cleanDesc(pA[1]);
+        const qty = parseInt(pA[2]);
+        const unit = parseNum(pA[3]);
+        const amt  = parseNum(pA[4]);
+        if (d.length >= 2 && amt && amt >= 100 && amt <= maxAmt) {
+          items.push({ description: d, qty, unitPrice: unit, amount: amt });
           continue;
         }
       }
-    }
 
-    // ── Pattern C: NAME  QTY  TOTAL (unit price = total / qty) ──────────────
-    if (tokens.length >= 2) {
-      const potQty = tokens[tokens.length - 2].val;
-      if (Number.isInteger(potQty) && potQty >= 1 && potQty <= 99) {
-        const unit = Math.round(amount / potQty);
-        items.push({ description: desc, qty: potQty, unitPrice: unit, amount });
+      // Pattern B: NAME  QTY  UNIT  TOTAL (tanpa 'x')
+      if (tokens.length >= 3) {
+        const potQty  = tokens[tokens.length - 3].val;
+        const potUnit = tokens[tokens.length - 2].val;
+        if (Number.isInteger(potQty) && potQty >= 1 && potQty <= 99 && potUnit >= 100) {
+          const expected = potQty * potUnit;
+          if (Math.abs(expected - amount) / Math.max(amount, 1) <= 0.06) {
+            items.push({ description: desc, qty: potQty, unitPrice: potUnit, amount });
+            continue;
+          }
+        }
+      }
+
+      // Pattern C: NAME  QTY  TOTAL
+      if (tokens.length >= 2) {
+        const potQty = tokens[tokens.length - 2].val;
+        if (Number.isInteger(potQty) && potQty >= 1 && potQty <= 99) {
+          const unit = Math.round(amount / potQty);
+          if (unit >= 100) {
+            items.push({ description: desc, qty: potQty, unitPrice: unit, amount });
+            continue;
+          }
+        }
+      }
+
+      // Pattern D: NAME  TOTAL (restaurant/warung — paling sering)
+      if (amount >= 100) {
+        items.push({ description: desc, qty: null, unitPrice: null, amount });
         continue;
       }
-    }
-
-    // ── Pattern D: NAME  TOTAL (simple / restaurant) ─────────────────────────
-    // Accept if amount is reasonable
-    if (amount >= 500) {
-      items.push({ description: desc, qty: null, unitPrice: null, amount });
+    } else {
+      // CASE 2: Baris tanpa angka, tapi baris berikutnya mungkin harganya
+      // (format struk dua baris: nama di atas, harga di bawah)
+      // Ditangani di pass kedua di bawah
     }
   }
 
-  // Deduplicate on description
+  // ─── Pass 2: Tangani format 2-baris (nama di atas, harga di baris bawah) ───
+  for (let i = 0; i < lines.length - 1; i++) {
+    const line = lines[i];
+    const nextLine = lines[i + 1];
+
+    if (line.length < 2) continue;
+    if (isNonItemLine(line)) continue;
+
+    const curTokens = findNumTokens(line);
+    const nextTokens = findNumTokens(nextLine);
+
+    // Baris sekarang: hanya teks (nama item), baris berikut: hanya angka
+    if (curTokens.length === 0 && nextTokens.length > 0) {
+      const desc = cleanDesc(line);
+      if (desc.length < 2) continue;
+
+      const amount = nextTokens[nextTokens.length - 1].val;
+      if (amount < 100 || amount > maxAmt) continue;
+
+      // Cek apakah sudah ada item dengan deskripsi sama
+      const alreadyExists = items.some(
+        (it) => it.description.toLowerCase() === desc.toLowerCase()
+      );
+      if (!alreadyExists) {
+        items.push({ description: desc, qty: null, unitPrice: null, amount });
+      }
+    }
+  }
+
+  // Dedup by description (case-insensitive)
   const seen = new Set<string>();
   return items
     .filter((item) => {
-      if (seen.has(item.description)) return false;
-      seen.add(item.description);
+      const key = item.description.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     })
-    .slice(0, 25);
+    .slice(0, 50); // naikkan limit ke 50
 }
 
-// ─── Main parser ──────────────────────────────────────────────────────────────
+// ─── Main Parser ─────────────────────────────────────────────────────────────
 function parseReceiptText(rawText: string, confidence: number): ReceiptData {
-  const text = normalizeText(rawText);
+  const text  = normalizeText(rawText);
   const lines = text.split("\n").filter((l) => l.length > 1);
 
   const storeName = extractStoreName(lines);
-  const date = extractDate(text);
+  const date      = extractDate(text);
   const { totalAmount, subtotal, tax } = extractFinancials(text, lines);
   const items = extractItems(lines, totalAmount);
 
+  console.log(`Parsed: total=${totalAmount}, subtotal=${subtotal}, tax=${tax}, items=${items.length}`);
   return { items, totalAmount, subtotal, tax, date, storeName, rawText, confidence };
 }
 
 function emptyResult(error?: string): ReceiptData {
-  return { items: [], totalAmount: null, subtotal: null, tax: null, date: null, storeName: null, rawText: "", confidence: 0, error };
+  return {
+    items: [], totalAmount: null, subtotal: null, tax: null,
+    date: null, storeName: null, rawText: "", confidence: 0, error,
+  };
 }

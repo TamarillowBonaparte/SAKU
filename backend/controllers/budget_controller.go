@@ -25,6 +25,12 @@ type CreateBudgetRequest struct {
 	Date       string  `json:"date" binding:"required"`
 }
 
+type UpdateBudgetRequest struct {
+	CategoryID float64 `json:"category_id"`
+	DailyLimit float64 `json:"daily_limit"`
+	Date       string  `json:"date"`
+}
+
 func (bc *BudgetController) CreateBudget(c *gin.Context) {
 	var req CreateBudgetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -112,9 +118,23 @@ func (bc *BudgetController) UpdateBudget(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindJSON(budget); err != nil {
+	var req UpdateBudgetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request", err.Error())
 		return
+	}
+
+	if req.CategoryID > 0 {
+		budget.CategoryID = uint(req.CategoryID)
+	}
+	if req.DailyLimit > 0 {
+		budget.DailyLimit = req.DailyLimit
+	}
+	if req.Date != "" {
+		parsedDate, err := time.Parse("2006-01-02", req.Date)
+		if err == nil {
+			budget.Date = parsedDate
+		}
 	}
 
 	if err := bc.budgetService.UpdateBudget(budget); err != nil {

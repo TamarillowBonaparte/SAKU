@@ -9,6 +9,11 @@ import (
 	"financial-freedom/routes"
 	"financial-freedom/services"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +45,7 @@ func main() {
 	debtService := services.NewDebtService(debtRepository)
 	todoService := services.NewTodoService(todoRepository)
 	notificationService := services.NewNotificationService(db)
-	receiptOCRService := services.NewReceiptOCRService()
+	receiptOCRService := services.NewReceiptOCRService() // auto-spawn PaddleOCR
 
 	// Initialize controllers
 	authController := controllers.NewAuthController(authService, categoryService)
@@ -80,15 +85,41 @@ func main() {
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status": "ok",
-		})
+		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// Start server
+	// ─── Graceful shutdown ────────────────────────────────────────────────────
 	port := config.GetEnv("PORT", "8080")
-	log.Printf("Starting server on port %s", port)
-	if err := router.Run(":" + port); err != nil {
-		log.Fatal("Server failed to start:", err)
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: router,
 	}
+
+	// Jalankan server di goroutine
+	go func() {
+		log.Printf("🚀 Server berjalan di port %s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	// Tunggu sinyal OS (Ctrl+C / SIGTERM)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("⏳ Menghentikan server...")
+
+	// Beri waktu 10 detik untuk request yang sedang berjalan selesai
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server shutdown error: %v", err)
+	}
+
+	// Hentikan PaddleOCR Python process
+	receiptOCRService.Shutdown()
+
+	log.Println("✅ Server berhenti dengan bersih")
 }

@@ -10,6 +10,7 @@ import { ActivityIndicator, View } from "react-native";
 import "react-native-reanimated";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { AppThemeProvider } from "@/context/ThemeContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useBudgetStore } from "@/store/useBudgetStore";
 import { useCategoryStore } from "@/store/useCategoryStore";
@@ -17,6 +18,19 @@ import { useDebtStore } from "@/store/useDebtStore";
 import { useTodoStore } from "@/store/useTodoStore";
 import { useTransactionStore } from "@/store/useTransactionStore";
 import { setupAppServices } from "@/utils/appInit";
+
+
+/**
+ * ROOT LAYOUT
+ * ============
+ * Main entry point for app navigation and authentication.
+ * Handles:
+ * - Auth state management and redirects
+ * - Data initialization (stores, categories, etc.)
+ * - Stack navigation setup (login, register, tabs, add screens)
+ */
+
+
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -118,10 +132,12 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <AuthProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <RootLayoutContent />
-      </ThemeProvider>
-    </AuthProvider>
+    <AppThemeProvider>
+      <AuthProvider>
+        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <RootLayoutContent />
+        </ThemeProvider>
+      </AuthProvider>
+    </AppThemeProvider>
   );
 }

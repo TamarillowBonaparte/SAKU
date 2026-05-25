@@ -78,9 +78,14 @@ export const useBudgetStore = create<Store>((set) => ({
       set({ isLoading: true, error: null });
       const updated = await budgetService.updateBudget(id, updates);
       set((state) => ({
-        budgets: state.budgets.map((b) => (b.id === id ? updated : b)),
+        budgets: state.budgets.map((b) =>
+          b.id === id ? { ...b, ...updated, category: updated.category ?? b.category } : b
+        ),
         isLoading: false,
       }));
+      // Reload to sync with server (category relations etc.)
+      const budgets = await budgetService.getBudgets();
+      set({ budgets: budgets || [] });
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || 'Error updating budget';
       console.error('Error updating budget:', error);
