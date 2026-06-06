@@ -4,6 +4,7 @@ import (
 	"financial-freedom/models"
 	"fmt"
 	"log"
+	"net/url"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -18,23 +19,49 @@ func InitDatabase() *gorm.DB {
 	return db
 }
 
+func buildDSN() string {
+	host := MustGetEnv("DB_HOST")
+	port := MustGetEnv("DB_PORT")
+	dbName := MustGetEnv("DB_NAME")
+	user := GetEnv("DB_USER", "")
+	password := GetEnv("DB_PASSWORD", "")
+	sslmode := GetEnv("DB_SSLMODE", "disable")
+
+	// Gunakan URL format untuk menghindari parsing error ketika user/password kosong
+	u := &url.URL{
+		Scheme: "postgres",
+		Host:   fmt.Sprintf("%s:%s", host, port),
+		Path:   dbName,
+	}
+
+	if user != "" {
+		if password != "" {
+			u.User = url.UserPassword(user, password)
+		} else {
+			u.User = url.User(user)
+		}
+	}
+
+	q := u.Query()
+	q.Set("sslmode", sslmode)
+	q.Set("TimeZone", "Asia/Jakarta")
+	q.Set("client_encoding", "UTF8")
+	u.RawQuery = q.Encode()
+
+	dsn := u.String()
+	log.Printf("🔌 Menghubungkan ke database: %s:%s/%s", host, port, dbName)
+	return dsn
+}
+
 func InitDatabaseRaw() *gorm.DB {
-	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=Asia/Jakarta client_encoding=UTF8",
-		GetEnv("DB_HOST", "localhost"),
-		GetEnv("DB_PORT", "5432"),
-		GetEnv("DB_USER", "postgres"),
-		GetEnv("DB_PASSWORD", ""),
-		GetEnv("DB_NAME", "financial_freedom"),
-		GetEnv("DB_SSLMODE", "disable"),
-	)
+	dsn := buildDSN()
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatalf("❌ Gagal terhubung ke database: %v", err)
 	}
 
-	log.Println("Database connected successfully")
+	log.Println("✅ Database connected successfully")
 	return db
 }
 

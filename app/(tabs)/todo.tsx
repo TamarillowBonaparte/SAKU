@@ -1,750 +1,165 @@
-import { Todo, useTodoStore } from "@/store/useTodoStore";
+import { useDebtStore } from '@/store/useDebtStore';
+import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-    calculateNotificationTime,
-    formatTimeUntilNotification,
-} from "@/utils/reminderNotification";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Modal,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
-} from "react-native";
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-export default function ReminderScreen() {
-  const router = useRouter();
-  const { todos, loadTodos, deleteTodo, isLoading } = useTodoStore();
-
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [reminderSettings, setReminderSettings] = useState<any>(null);
-
-  // Load todos when screen is focused
-  useFocusEffect(
-    React.useCallback(() => {
-      loadTodos();
-      loadReminderSettingsFromStorage();
-    }, [loadTodos])
-  );
-
-  const loadReminderSettingsFromStorage = async () => {
-    try {
-      const saved = await AsyncStorage.getItem("todoReminderSettings");
-      if (saved) {
-        setReminderSettings(JSON.parse(saved));
-      } else {
-        setReminderSettings({
-          type: "1hour",
-          customValue: 1,
-          customUnit: "hours",
-        });
-      }
-    } catch (error) {
-      console.error("Error loading reminder settings:", error);
-    }
-  };
-
-  // Format date to YYYY-MM-DD
-  const formatDateToString = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const parseDateOnly = (value: string) => {
-    const normalizedDate = getDateKey(value);
-    const [yearText, monthText, dayText] = normalizedDate.split("-");
-    const year = Number(yearText);
-    const month = Number(monthText);
-    const day = Number(dayText);
-
-    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-      return new Date(value);
-    }
-
-    return new Date(year, month - 1, day);
-  };
-
-  const getDateKey = (value: string): string => {
-    const trimmedValue = value.trim();
-    const directDateMatch = trimmedValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
-
-    if (directDateMatch) {
-      return `${directDateMatch[1]}-${directDateMatch[2]}-${directDateMatch[3]}`;
-    }
-
-    const parsedDate = new Date(trimmedValue);
-    if (!Number.isNaN(parsedDate.getTime())) {
-      return formatDateToString(parsedDate);
-    }
-
-    return trimmedValue;
-  };
-
-  const formatTodoDate = (value: string) => {
-    const parsedDate = parseDateOnly(value);
-    if (Number.isNaN(parsedDate.getTime())) {
-      return value;
-    }
-
-    return parsedDate.toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const getTodoDateTime = (todo: Todo) => {
-    const baseDate = parseDateOnly(todo.date);
-
-    if (todo.time) {
-      const parsedTime = new Date(todo.time);
-      if (!Number.isNaN(parsedTime.getTime())) {
-        const combinedDate = new Date(baseDate);
-        combinedDate.setHours(parsedTime.getHours(), parsedTime.getMinutes(), parsedTime.getSeconds(), 0);
-        return combinedDate;
-      }
-
-      const [hoursText, minutesText] = todo.time.split(":");
-      const hours = Number(hoursText);
-      const minutes = Number(minutesText);
-      const combinedDate = new Date(baseDate);
-      combinedDate.setHours(Number.isFinite(hours) ? hours : 0, Number.isFinite(minutes) ? minutes : 0, 0, 0);
-      return combinedDate;
-    }
-
-    return baseDate;
-  };
-
-  const formatTodoTime = (value?: string) => {
-    if (!value) {
-      return null;
-    }
-
-    const parsedTime = new Date(value);
-    if (!Number.isNaN(parsedTime.getTime())) {
-      return parsedTime.toLocaleTimeString("id-ID", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-    }
-
-    const [hoursText, minutesText] = value.split(":");
-    const hours = Number(hoursText);
-    const minutes = Number(minutesText);
-
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-      return value;
-    }
-
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-  };
-
-  // Get events for a specific date
-  const getEventsForDate = (dateStr: string): Todo[] => {
-    return todos
-      .filter((todo) => getDateKey(todo.date) === dateStr)
-      .sort((a, b) => getTodoDateTime(a).getTime() - getTodoDateTime(b).getTime());
-  };
-
-  // Get all days in current month
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days: (number | null)[] = [];
-
-    // Add empty days before month starts
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
-
-    // Add days of month
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(i);
-    }
-
-    return days;
-  };
-
-  const handlePrevMonth = () => {
-    setCurrentDate(
-      new Date(currentDate.getFullYear(), currentDate.getMonth() - 1)
-    );
-  };
-
-  const handleNextMonth = () => {
-    setCurrentDate(
-      new Date(currentDate.getFullYear(), currentDate.getMonth() + 1)
-    );
-  };
-
-  const handleDatePress = (day: number) => {
-    const dateStr = formatDateToString(
-      new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-    );
-    const eventsForDate = getEventsForDate(dateStr);
-
-    if (eventsForDate.length > 0) {
-      setSelectedDate(dateStr);
-      setModalVisible(true);
-    }
-  };
-
-  const handleEditTodo = (todoId: number) => {
-    setModalVisible(false);
-    router.push({
-      pathname: "/add-todo",
-      params: { editId: todoId.toString() },
-    });
-  };
-
-  const handleDeleteTodo = async (todoId: number) => {
-    Alert.alert("Delete Reminder", "Apakah Anda yakin ingin menghapus?", [
-      { text: "Cancel", onPress: () => {} },
-      {
-        text: "Delete",
-        onPress: async () => {
-          setDeleting(true);
-          try {
-            await deleteTodo(todoId);
-            setModalVisible(false);
-            setSelectedDate(null);
-            Alert.alert("Success", "Reminder berhasil dihapus");
-          } catch {
-            Alert.alert("Error", "Gagal menghapus reminder");
-          } finally {
-            setDeleting(false);
-          }
-        },
-        style: "destructive",
-      },
-    ]);
-  };
-
-  const days = getDaysInMonth(currentDate);
-  const selectedDateEvents = selectedDate
-    ? getEventsForDate(selectedDate)
-    : [];
-  const upcomingEvents = todos
-    .filter((todo) => {
-      return getTodoDateTime(todo) >= new Date() && !todo.is_done;
-    })
-    .sort((a, b) => getTodoDateTime(a).getTime() - getTodoDateTime(b).getTime())
-    .slice(0, 3);
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.avatarWrap}>
-            <Image
-              source={{
-                uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBJrPETgcUp2PzjSFueY6HufScGG7-otzxzUOEXsovjiTyPZe3T7LiGJWCKYB6OOToLWvEdxIBVTNdpghxHvYwLR1Ebk2TiW03uFh8ygs80VKwOl-z3qHUEfgEcCdlYICBGaqnUZFUZn_Oxx6atrrIQ4YCS7FmsE_XZl_d4pOBOdvST0YypaJ4bPUJWqj7Wi0hYoMaU7gFlcWq-qyRwBThoErE5OUiWwljunLS7X3Iwd-wBdZkMoFXITbRp94FG6FjiVt15Hk4vFxQ",
-              }}
-              style={styles.avatar}
-            />
-          </TouchableOpacity>
-
-          <Text style={styles.headerTitle}>Reminder</Text>
-        </View>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Calendar */}
-        <View style={styles.section}>
-          <View style={styles.card}>
-            <View style={styles.calendarHeader}>
-              <Text style={styles.monthTitle}>
-                {currentDate.toLocaleDateString("id-ID", {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </Text>
-
-              <View style={styles.row}>
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={handlePrevMonth}
-                >
-                  <Ionicons name="chevron-back" size={18} color="#666" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={handleNextMonth}
-                >
-                  <Ionicons name="chevron-forward" size={18} color="#666" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Day labels */}
-            <View style={styles.grid}>
-              {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-                <View key={`${day}-${index}`} style={styles.dayWrap}>
-                  <Text style={styles.dayLabel}>{day}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Calendar days */}
-            <View style={styles.grid}>
-              {days.map((day, index) => {
-                const dateStr =
-                  day !== null
-                    ? formatDateToString(
-                        new Date(
-                          currentDate.getFullYear(),
-                          currentDate.getMonth(),
-                          day
-                        )
-                      )
-                    : null;
-                const hasEvents = day !== null && getEventsForDate(dateStr!).length > 0;
-                const isToday =
-                  day !== null &&
-                  new Date().toDateString() ===
-                    new Date(
-                      currentDate.getFullYear(),
-                      currentDate.getMonth(),
-                      day
-                    ).toDateString();
-
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.dayWrap}
-                    onPress={() => day !== null && handleDatePress(day)}
-                    disabled={day === null}
-                  >
-                    {day !== null ? (
-                      <View
-                        style={[
-                          isToday && styles.activeDate,
-                          hasEvents && styles.eventDate,
-                          hasEvents && styles.eventDateActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.dateText,
-                            isToday && { color: "#2563EB", fontWeight: "700" },
-                            hasEvents && styles.eventDateText,
-                          ]}
-                        >
-                          {day}
-                        </Text>
-                        {hasEvents && <View style={styles.eventDot} />}
-                      </View>
-                    ) : null}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-
-        {/* Upcoming Events */}
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2563EB" />
-          </View>
-        ) : upcomingEvents.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.titleRow}>
-              <Text style={styles.sectionTitle}>Mendatang</Text>
-              {todos.length > 3 && (
-                <TouchableOpacity
-                  onPress={() => {
-                    // Show all reminders
-                  }}
-                >
-                  <Text style={styles.link}>Lihat Semua</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {upcomingEvents.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.reminderCard}
-                onPress={() => {
-                  setSelectedDate(getDateKey(item.date));
-                  setModalVisible(true);
-                }}
-              >
-                <View style={styles.iconBox}>
-                  <MaterialIcons name="event-note" size={26} color="#2563EB" />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <View style={styles.titleRow}>
-                    <Text style={styles.reminderTitle}>{item.title}</Text>
-
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>Upcoming</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.metaRow}>
-                    <View style={styles.metaItem}>
-                      <MaterialIcons
-                        name="calendar-today"
-                        size={14}
-                        color="#777"
-                      />
-                      <Text style={styles.metaText}>{formatTodoDate(item.date)}</Text>
-                    </View>
-
-                    {item.time && (
-                      <View style={styles.metaItem}>
-                        <Ionicons name="time-outline" size={14} color="#777" />
-                        <Text style={styles.metaText}>{formatTodoTime(item.time)}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="calendar-outline" size={48} color="#D1D5DB" />
-            <Text style={styles.emptyText}>Tidak ada reminder</Text>
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Event Details Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setModalVisible(false);
-          setSelectedDate(null);
-        }}
-      >
-        <TouchableWithoutFeedback
-          onPress={() => {
-            setModalVisible(false);
-            setSelectedDate(null);
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setModalVisible(false);
-                      setSelectedDate(null);
-                    }}
-                  >
-                    <Ionicons name="close" size={24} color="#111" />
-                  </TouchableOpacity>
-                  <Text style={styles.modalTitle}>Event Details</Text>
-                  <View style={{ width: 24 }} />
-                </View>
-
-                <ScrollView>
-                  {selectedDateEvents.length > 0 ? (
-                    selectedDateEvents.map((event) => {
-                      // Calculate notification time
-                      const eventDateTime = getTodoDateTime(event);
-                      const notificationTime = reminderSettings
-                        ? calculateNotificationTime(eventDateTime, reminderSettings)
-                        : eventDateTime;
-                      const timeUntilNotification = formatTimeUntilNotification(
-                        notificationTime
-                      );
-
-                      return (
-                        <View key={event.id} style={styles.eventDetailsContainer}>
-                          <View style={styles.eventIconBox}>
-                            <MaterialIcons name="event-note" size={32} color="#2563EB" />
-                          </View>
-
-                          <Text style={styles.eventTitle}>{event.title}</Text>
-
-                          <View style={styles.eventDetailsRow}>
-                            <MaterialIcons name="calendar-today" size={16} color="#666" />
-                            <Text style={styles.eventDetailText}>{formatTodoDate(event.date)}</Text>
-                          </View>
-
-                          {event.time && (
-                            <View style={styles.eventDetailsRow}>
-                              <Ionicons name="time-outline" size={16} color="#666" />
-                              <Text style={styles.eventDetailText}>{formatTodoTime(event.time)}</Text>
-                            </View>
-                          )}
-
-                          {/* Notification Time Display */}
-                          <View style={styles.notificationTimeBadge}>
-                            <Ionicons name="alarm" size={14} color="#2563EB" />
-                            <Text style={styles.notificationTimeText}>
-                              Notifikasi dalam {timeUntilNotification}
-                            </Text>
-                          </View>
-
-                          <View style={styles.actionButtons}>
-                            <TouchableOpacity
-                              style={styles.editButton}
-                              onPress={() => handleEditTodo(event.id)}
-                            >
-                              <MaterialIcons name="edit" size={18} color="#fff" />
-                              <Text style={styles.buttonLabel}>Edit</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                              style={[styles.deleteButton, deleting && { opacity: 0.6 }]}
-                              onPress={() => handleDeleteTodo(event.id)}
-                              disabled={deleting}
-                            >
-                              {deleting ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                              ) : (
-                                <>
-                                  <Ionicons name="trash" size={18} color="#fff" />
-                                  <Text style={styles.buttonLabel}>Delete</Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      );
-                    })
-                  ) : (
-                    <View style={styles.emptyModalState}>
-                      <Text style={styles.emptyText}>Tidak ada reminder di tanggal ini</Text>
-                    </View>
-                  )}
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push("/add-todo")}
-      >
-        <Ionicons name="add" size={34} color="#fff" />
-      </TouchableOpacity>
-    </SafeAreaView>
-  );
-}
+const COLORS = {
+  background: '#f7f9fb',
+  surface: '#ffffff',
+  primary: '#004ac6',
+  primarySoft: '#dbe1ff',
+  secondary: '#006e2d',
+  tertiary: '#ae0010',
+  text: '#191c1e',
+  textSoft: '#6b7280',
+  border: '#eceef0',
+  warning: '#996600',
+  warningBg: '#fff2cc',
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
 
   header: {
+    height: 68,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F1F1",
-    backgroundColor: "#ffffff",
-  },
-
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  avatarWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    overflow: "hidden",
-    marginRight: 12,
-  },
-
-  avatar: {
-    width: "100%",
-    height: "100%",
+    borderBottomColor: COLORS.border,
   },
 
   headerTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#111",
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.text,
   },
 
-  section: {
+  content: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingBottom: 120,
   },
 
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 18,
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
+  calendarCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 28,
+    padding: 22,
+    marginTop: 20,
+    marginBottom: 24,
   },
 
   calendarHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 18,
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    alignItems: 'center',
   },
 
-  monthTitle: {
+  calendarTitle: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#111",
+    fontWeight: '800',
+    color: COLORS.text,
   },
 
-  row: {
-    flexDirection: "row",
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
 
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 6,
-    backgroundColor: "#F5F5F5",
-  },
-
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-
-  dayWrap: {
-    width: "14.28%",
-    alignItems: "center",
+  dayName: {
+    width: `${100 / 7}%`,
+    textAlign: 'center',
     marginBottom: 14,
-  },
-
-  dayLabel: {
     fontSize: 11,
-    fontWeight: "700",
-    color: "#888",
+    color: COLORS.textSoft,
+    fontWeight: '700',
   },
 
-  dateText: {
-    fontSize: 14,
-    color: "#111",
+  dayCell: {
+    width: `${100 / 7}%`,
+    height: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
   },
 
-  activeDate: {
-    backgroundColor: "#DBEAFE",
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
+  activeDay: {
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 999,
   },
 
-  eventDate: {
-    position: "relative",
-  },
-
-  eventDateActive: {
-    backgroundColor: "#FEE2E2",
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  eventDateText: {
-    color: "#DC2626",
-    fontWeight: "700",
-  },
-
-  eventDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#EF4444",
-    position: "absolute",
-    bottom: -8,
-  },
-
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  activeDayText: {
+    color: COLORS.primary,
+    fontWeight: '800',
   },
 
   sectionTitle: {
     fontSize: 20,
-    fontWeight: "800",
-    color: "#111",
-  },
-
-  link: {
-    color: "#2563EB",
-    fontWeight: "700",
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 16,
   },
 
   reminderCard: {
-    backgroundColor: "#fff",
-    borderRadius: 22,
-    padding: 14,
-    flexDirection: "row",
-    marginTop: 14,
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 14,
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'flex-start',
   },
 
-  iconBox: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: "#DBEAFE",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
+  reminderIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  reminderTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#111",
+  reminderBody: {
+    flex: 1,
+  },
+
+  reminderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    alignItems: 'center',
+  },
+
+  reminderDate: {
+    fontSize: 10,
+    color: COLORS.textSoft,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
 
   badge: {
-    backgroundColor: "#DBEAFE",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -752,182 +167,514 @@ const styles = StyleSheet.create({
 
   badgeText: {
     fontSize: 10,
-    fontWeight: "700",
-    color: "#2563EB",
+    fontWeight: '800',
   },
 
-  metaRow: {
-    flexDirection: "row",
-    marginTop: 10,
-    gap: 14,
+  reminderTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
   },
 
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
+  reminderAmount: {
+    marginTop: 6,
+    fontSize: 18,
+    fontWeight: '800',
   },
 
-  metaText: {
-    fontSize: 12,
-    color: "#777",
-    marginLeft: 4,
+  alarmButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 25,
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
     width: 62,
     height: 62,
-    borderRadius: 31,
-    backgroundColor: "#2563EB",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 5,
+    borderRadius: 999,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 10,
   },
 
-  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
   },
 
   modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 40,
-    maxHeight: "80%",
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 30,
+    maxHeight: '85%',
   },
 
   modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingTop: 18,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F1F1",
+    borderBottomColor: COLORS.border,
   },
 
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111",
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
   },
 
-  eventDetailsContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    alignItems: "center",
+  modalBody: {
+    padding: 20,
   },
 
-  eventIconBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: "#DBEAFE",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-
-  eventTitle: {
+  detailTitle: {
     fontSize: 20,
-    fontWeight: "800",
-    color: "#111",
-    marginBottom: 16,
-    textAlign: "center",
+    fontWeight: '800',
+    color: COLORS.text,
+    marginTop: 16,
+    textAlign: 'center',
   },
 
-  eventDetailsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
+  detailAmount: {
+    fontSize: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 12,
   },
 
-  eventDetailText: {
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 18,
+  },
+
+  detailText: {
     fontSize: 14,
-    color: "#666",
-    marginLeft: 10,
+    color: COLORS.textSoft,
   },
 
-  actionButtons: {
-    flexDirection: "row",
+  actionRow: {
+    flexDirection: 'row',
     gap: 12,
-    marginTop: 24,
-    width: "100%",
+    marginTop: 26,
   },
 
   editButton: {
     flex: 1,
-    flexDirection: "row",
-    backgroundColor: "#2563EB",
-    height: 48,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
   },
 
   deleteButton: {
     flex: 1,
-    flexDirection: "row",
-    backgroundColor: "#EF4444",
-    height: 48,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
+    backgroundColor: COLORS.tertiary,
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
   },
 
-  buttonLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#fff",
-  },
-
-  loadingContainer: {
-    paddingVertical: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  emptyContainer: {
-    paddingVertical: 60,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  emptyText: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginTop: 12,
-  },
-
-  emptyModalState: {
-    paddingVertical: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  notificationTimeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#EEF2FF",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginVertical: 16,
-    gap: 8,
-  },
-
-  notificationTimeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#2563EB",
-    flex: 1,
+  actionText: {
+    color: '#fff',
+    fontWeight: '800',
   },
 });
+
+const toCurrency = (amount: number) =>
+  `Rp ${Math.abs(amount).toLocaleString('id-ID')}`;
+
+const formatDate = (dateText: string) => {
+  const parsed = new Date(dateText);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return dateText;
+  }
+
+  return parsed.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+const isDebtType = (type: string) => {
+  const normalized = type.toLowerCase();
+  return normalized === 'utang' || normalized === 'debt';
+};
+
+const getStatusMeta = (status: string, dueDate: string) => {
+  const normalized = status.toLowerCase();
+
+  if (normalized.includes('lunas') || normalized.includes('paid')) {
+    return {
+      label: 'Lunas',
+      bg: '#e2e8f0',
+      text: '#475569',
+    };
+  }
+
+  const parsedDueDate = new Date(dueDate);
+
+  const overdue =
+    !Number.isNaN(parsedDueDate.getTime()) &&
+    parsedDueDate.getTime() < new Date().setHours(0, 0, 0, 0);
+
+  if (normalized.includes('jatuh') || overdue) {
+    return {
+      label: 'Lewat Tempo',
+      bg: COLORS.warningBg,
+      text: COLORS.warning,
+    };
+  }
+
+  return {
+    label: 'Aktif',
+    bg: '#dcfce7',
+    text: '#166534',
+  };
+};
+
+export default function DebtScreen() {
+  const debts = useDebtStore((s) => s.debts);
+  const isLoading = useDebtStore((s) => s.isLoading);
+  const loadDebts = useDebtStore((s) => s.loadDebts);
+  const deleteDebt = useDebtStore((s) => s.deleteDebt);
+
+  const [selectedDebt, setSelectedDebt] = useState<any>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDebts();
+    }, [loadDebts]),
+  );
+
+  const sortedDebts = useMemo(() => {
+    return [...debts].sort((a, b) => {
+      return (
+        new Date(a.due_date).getTime() -
+        new Date(b.due_date).getTime()
+      );
+    });
+  }, [debts]);
+
+  const reminderDays = useMemo(() => {
+    return sortedDebts.map((item) => {
+      const date = new Date(item.due_date);
+      return date.getDate();
+    });
+  }, [sortedDebts]);
+
+  const handleDeleteDebt = (id: number, name: string) => {
+    Alert.alert(
+      'Hapus Catatan',
+      `Yakin ingin menghapus "${name}"?`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteDebt(id);
+            await loadDebts();
+            setDetailModalVisible(false);
+          },
+        },
+      ],
+    );
+  };
+
+  const renderCalendar = () => {
+    const days = [];
+    const totalDays = 31;
+
+    for (let i = 1; i <= totalDays; i++) {
+      const active = reminderDays.includes(i);
+
+      days.push(
+        <View
+          key={i}
+          style={[styles.dayCell, active && styles.activeDay]}
+        >
+          <Text style={active && styles.activeDayText}>{i}</Text>
+        </View>,
+      );
+    }
+
+    return days;
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>Pengingat Tagihan</Text>
+
+        <View style={{ width: 24 }} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={() => void loadDebts()}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.calendarCard}>
+          <View style={styles.calendarHeader}>
+            <Text style={styles.calendarTitle}>Mei 2026</Text>
+
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color={COLORS.textSoft}
+              />
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={COLORS.textSoft}
+              />
+            </View>
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].map((d) => (
+              <Text key={d} style={styles.dayName}>
+                {d}
+              </Text>
+            ))}
+
+            {renderCalendar()}
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>Daftar Tagihan</Text>
+
+        {isLoading && sortedDebts.length === 0 ? (
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        ) : null}
+
+        {sortedDebts.map((item) => {
+          const debt = isDebtType(item.type);
+
+          const status = getStatusMeta(
+            item.status,
+            item.due_date,
+          );
+
+          return (
+            <Pressable
+              key={item.id}
+              style={styles.reminderCard}
+              onPress={() => {
+                setSelectedDebt(item);
+                setDetailModalVisible(true);
+              }}
+            >
+              <View
+                style={[
+                  styles.reminderIcon,
+                  {
+                    backgroundColor: debt
+                      ? '#fee2e2'
+                      : '#dcfce7',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={
+                    debt
+                      ? 'arrow-top-right'
+                      : 'arrow-bottom-left'
+                  }
+                  size={24}
+                  color={
+                    debt
+                      ? COLORS.tertiary
+                      : COLORS.secondary
+                  }
+                />
+              </View>
+
+              <View style={styles.reminderBody}>
+                <View style={styles.reminderTop}>
+                  <Text style={styles.reminderDate}>
+                    {formatDate(item.due_date)}
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.badge,
+                      { backgroundColor: status.bg },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        { color: status.text },
+                      ]}
+                    >
+                      {status.label}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.reminderTitle}>
+                  {item.name}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.reminderAmount,
+                    {
+                      color: debt
+                        ? COLORS.tertiary
+                        : COLORS.secondary,
+                    },
+                  ]}
+                >
+                  {debt ? '- ' : '+ '}
+                  {toCurrency(item.amount)}
+                </Text>
+              </View>
+
+              <TouchableOpacity style={styles.alarmButton}>
+                <Ionicons
+                  name="notifications"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push('/add-debt')}
+      >
+        <Ionicons name="add" size={34} color="#fff" />
+      </TouchableOpacity>
+
+      <Modal
+        visible={detailModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDetailModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                onPress={() => setDetailModalVisible(false)}
+              >
+                <Ionicons
+                  name="close"
+                  size={24}
+                  color={COLORS.text}
+                />
+              </TouchableOpacity>
+
+              <Text style={styles.modalTitle}>
+                Detail Tagihan
+              </Text>
+
+              <View style={{ width: 24 }} />
+            </View>
+
+            {selectedDebt && (
+              <ScrollView style={styles.modalBody}>
+                <Text style={styles.detailTitle}>
+                  {selectedDebt.name}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.detailAmount,
+                    {
+                      color: isDebtType(selectedDebt.type)
+                        ? COLORS.tertiary
+                        : COLORS.secondary,
+                    },
+                  ]}
+                >
+                  {toCurrency(selectedDebt.amount)}
+                </Text>
+
+                <View style={styles.detailRow}>
+                  <Ionicons
+                    name="calendar"
+                    size={18}
+                    color={COLORS.textSoft}
+                  />
+
+                  <Text style={styles.detailText}>
+                    {formatDate(selectedDebt.due_date)}
+                  </Text>
+                </View>
+
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => {
+                      setDetailModalVisible(false);
+
+                      router.push({
+                        pathname: '/add-debt',
+                        params: {
+                          editId:
+                            selectedDebt.id.toString(),
+                        },
+                      });
+                    }}
+                  >
+                    <Text style={styles.actionText}>
+                      Edit
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() =>
+                      handleDeleteDebt(
+                        selectedDebt.id,
+                        selectedDebt.name,
+                      )
+                    }
+                  >
+                    <Text style={styles.actionText}>
+                      Hapus
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}

@@ -5,342 +5,408 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const COLORS = {
-  bg: '#f0f4ff',
-  card: '#ffffff',
+  background: '#f7f9fb',
+  surface: '#ffffff',
   primary: '#004ac6',
-  income: '#006e2d',
-  expense: '#ae0010',
+  primaryContainer: '#2563eb',
+  secondary: '#006e2d',
+  tertiary: '#ae0010',
   text: '#191c1e',
-  textSoft: 'rgba(25, 28, 30, 0.56)',
+  textSoft: '#434655',
   border: '#e2e8f0',
+  surfaceLow: '#f2f4f6',
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: COLORS.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
+
   header: {
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 16,
+    backgroundColor: COLORS.background,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eceef0',
+  },
+
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
   },
-  titleWrap: {
+
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  titleIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-  },
-  titleText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  titleSub: {
-    fontSize: 11,
-    color: COLORS.textSoft,
-  },
-  addButtonHeader: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingBottom: 110,
-  },
-  summaryRow: {
-    flexDirection: 'row',
     gap: 12,
-    marginBottom: 18,
   },
-  summaryCard: {
-    flex: 1,
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-  },
-  summaryLabel: {
-    color: '#ffffffcc',
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.7,
-    marginBottom: 8,
-  },
-  summaryAmount: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  sectionAction: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  itemCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-  },
-  itemTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  itemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flexShrink: 1,
-  },
-  itemIcon: {
+
+  headerIcon: {
     width: 42,
     height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 21,
+    backgroundColor: '#dbeafe',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
     color: COLORS.text,
   },
-  itemDate: {
+
+  headerSubtitle: {
     fontSize: 11,
     color: COLORS.textSoft,
     marginTop: 2,
   },
-  itemAmount: {
-    fontSize: 15,
-    fontWeight: '800',
-    textAlign: 'right',
-    marginBottom: 4,
+
+  profile: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#c7d2fe',
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    alignSelf: 'flex-end',
+
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 140,
   },
-  statusText: {
+
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 14,
+    marginBottom: 28,
+  },
+
+  summaryCard: {
+    flex: 1,
+    borderRadius: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+  },
+
+  summaryLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
   },
-  emptyState: {
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 24,
-    marginTop: 10,
+
+  summaryAmount: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: COLORS.text,
   },
-  emptyText: {
-    fontSize: 13,
-    color: COLORS.textSoft,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 12,
+
+  filterRow: {
+    flexDirection: 'row',
+    marginBottom: 28,
+    gap: 10,
   },
-  emptyButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingHorizontal: 14,
+
+  filterButton: {
+    paddingHorizontal: 18,
     paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
   },
-  emptyButtonText: {
-    color: '#fff',
+
+  filterButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+
+  filterText: {
     fontSize: 12,
     fontWeight: '700',
+    color: COLORS.textSoft,
   },
-  fab: {
-    position: 'absolute',
-    right: 18,
-    bottom: 18,
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+
+  filterTextActive: {
+    color: '#fff',
   },
-  reminderCountdownBox: {
-    backgroundColor: '#eff6ff',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  reminderCountdownText: {
-    fontSize: 11,
-    color: COLORS.primary,
-    fontWeight: '600',
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: COLORS.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 20,
-    maxHeight: '85%',
-  },
-  modalHeader: {
+
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    marginBottom: 18,
   },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '800',
     color: COLORS.text,
   },
-  modalBody: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  detailCard: {
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
-    padding: 16,
+
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#edf0f2',
     marginBottom: 16,
   },
-  detailIconBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: COLORS.card,
+
+  cardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  cardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+  },
+
+  iconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  detailName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 8,
-    textAlign: 'center',
+
+  debtBg: {
+    backgroundColor: '#fee2e2',
   },
-  detailAmount: {
-    fontSize: 24,
+
+  receivableBg: {
+    backgroundColor: '#dcfce7',
+  },
+
+  itemTitle: {
+    fontSize: 15,
     fontWeight: '800',
-    marginBottom: 12,
+    color: COLORS.text,
   },
+
+  itemDate: {
+    fontSize: 11,
+    color: COLORS.textSoft,
+    marginTop: 4,
+  },
+
+  itemAmount: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 8,
+    textAlign: 'right',
+  },
+
+  badge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    alignSelf: 'flex-end',
+  },
+
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+
+  reminderBox: {
+    marginTop: 14,
+    backgroundColor: '#e3f2fd',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  reminderText: {
+    flex: 1,
+    color: COLORS.primary,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+
+  emptyText: {
+    marginTop: 10,
+    color: COLORS.textSoft,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+
+  addButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+
+  addButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+
+  fab: {
+    position: 'absolute',
+    bottom: 28,
+    alignSelf: 'center',
+    width: 68,
+    height: 68,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingBottom: 30,
+    maxHeight: '85%',
+  },
+
+  modalHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+
+  modalBody: {
+    padding: 20,
+  },
+
+  detailCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 24,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+
+  detailIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+
+  detailName: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 10,
+    color: COLORS.text,
+  },
+
+  detailAmount: {
+    fontSize: 28,
+    fontWeight: '900',
+    marginBottom: 16,
+  },
+
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 10,
   },
-  detailRowText: {
+
+  detailText: {
     fontSize: 13,
     color: COLORS.textSoft,
   },
-  detailStatusBox: {
-    marginTop: 12,
-  },
-  actionButtonsRow: {
+
+  actionRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
-  editButtonFull: {
+
+  editButton: {
     flex: 1,
     backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 12,
-    flexDirection: 'row',
+    borderRadius: 18,
+    paddingVertical: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
     gap: 8,
   },
-  deleteButtonFull: {
+
+  deleteButton: {
     flex: 1,
-    backgroundColor: COLORS.expense,
-    borderRadius: 12,
-    paddingVertical: 12,
-    flexDirection: 'row',
+    backgroundColor: COLORS.tertiary,
+    borderRadius: 18,
+    paddingVertical: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
     gap: 8,
   },
-  actionButtonText: {
+
+  actionText: {
     color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });
 
-const toCurrency = (amount: number) => `Rp ${Math.abs(amount).toLocaleString('id-ID')}`;
+const toCurrency = (amount: number) =>
+  `Rp ${Math.abs(amount).toLocaleString('id-ID')}`;
 
 const formatDate = (dateText: string) => {
   const parsed = new Date(dateText);
+
   if (Number.isNaN(parsed.getTime())) {
     return dateText;
   }
@@ -363,26 +429,33 @@ const getStatusMeta = (status: string, dueDate: string) => {
   if (normalizedStatus.includes('lunas') || normalizedStatus.includes('paid')) {
     return {
       label: 'Lunas',
-      badgeBg: '#e2e8f0',
-      badgeText: '#475569',
+      bg: '#dcfce7',
+      text: '#166534',
     };
   }
 
   const parsedDueDate = new Date(dueDate);
-  const isPastDue = !Number.isNaN(parsedDueDate.getTime()) && parsedDueDate.getTime() < new Date().setHours(0, 0, 0, 0);
 
-  if (normalizedStatus.includes('jatuh') || normalizedStatus.includes('overdue') || isPastDue) {
+  const isPastDue =
+    !Number.isNaN(parsedDueDate.getTime()) &&
+    parsedDueDate.getTime() < new Date().setHours(0, 0, 0, 0);
+
+  if (
+    normalizedStatus.includes('jatuh') ||
+    normalizedStatus.includes('overdue') ||
+    isPastDue
+  ) {
     return {
       label: 'Jatuh Tempo',
-      badgeBg: '#ffedd5',
-      badgeText: '#c2410c',
+      bg: '#fef3c7',
+      text: '#92400e',
     };
   }
 
   return {
-    label: 'Aktif',
-    badgeBg: '#dcfce7',
-    badgeText: '#166534',
+    label: 'Lancar',
+    bg: '#dcfce7',
+    text: '#166534',
   };
 };
 
@@ -392,9 +465,10 @@ export default function DebtScreen() {
   const loadDebts = useDebtStore((s) => s.loadDebts);
   const deleteDebt = useDebtStore((s) => s.deleteDebt);
 
-  const [reminderSettings, setReminderSettings] = useState<any>(null);
+  const [selectedTab, setSelectedTab] = useState('Semua');
   const [selectedDebt, setSelectedDebt] = useState<any>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [reminderSettings, setReminderSettings] = useState<any>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -406,6 +480,7 @@ export default function DebtScreen() {
   const loadReminderSettings = async () => {
     try {
       const saved = await AsyncStorage.getItem('debtReminderSettings');
+
       if (saved) {
         setReminderSettings(JSON.parse(saved));
       } else {
@@ -416,16 +491,14 @@ export default function DebtScreen() {
         });
       }
     } catch (error) {
-      console.error('Error loading reminder settings:', error);
+      console.error(error);
     }
   };
 
   const calculateNotificationTime = (dueDate: string): Date => {
     const notificationTime = new Date(dueDate);
 
-    if (!reminderSettings) {
-      return notificationTime;
-    }
+    if (!reminderSettings) return notificationTime;
 
     if (reminderSettings.type === '1day') {
       notificationTime.setDate(notificationTime.getDate() - 1);
@@ -434,11 +507,11 @@ export default function DebtScreen() {
     } else if (reminderSettings.type === 'custom') {
       if (reminderSettings.customUnit === 'days') {
         notificationTime.setDate(
-          notificationTime.getDate() - reminderSettings.customValue
+          notificationTime.getDate() - reminderSettings.customValue,
         );
       } else if (reminderSettings.customUnit === 'weeks') {
         notificationTime.setDate(
-          notificationTime.getDate() - reminderSettings.customValue * 7
+          notificationTime.getDate() - reminderSettings.customValue * 7,
         );
       }
     }
@@ -450,20 +523,17 @@ export default function DebtScreen() {
     const now = new Date();
     const diff = notificationTime.getTime() - now.getTime();
 
-    if (diff <= 0) {
-      return 'Sekarang';
-    }
+    if (diff <= 0) return 'Sekarang';
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const hours = Math.floor(
+      (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+    );
 
-    if (days > 0) {
-      return `${days} hari`;
-    } else if (hours > 0) {
-      return `${hours} jam`;
-    } else {
-      return 'Segera';
-    }
+    if (days > 0) return `${days} hari`;
+    if (hours > 0) return `${hours} jam`;
+
+    return 'Segera';
   };
 
   const handleDeleteDebt = (debtId: number, debtName: string) => {
@@ -471,7 +541,10 @@ export default function DebtScreen() {
       'Hapus Catatan',
       `Yakin ingin menghapus "${debtName}"?`,
       [
-        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Batal',
+          style: 'cancel',
+        },
         {
           text: 'Hapus',
           style: 'destructive',
@@ -481,13 +554,14 @@ export default function DebtScreen() {
               await loadDebts();
               setDetailModalVisible(false);
               setSelectedDebt(null);
+
               Alert.alert('Sukses', 'Catatan berhasil dihapus');
             } catch {
               Alert.alert('Error', 'Gagal menghapus catatan');
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -499,113 +573,243 @@ export default function DebtScreen() {
         } else {
           acc.piutang += debt.amount;
         }
+
         return acc;
       },
-      { utang: 0, piutang: 0 },
+      {
+        utang: 0,
+        piutang: 0,
+      },
     );
   }, [debts]);
 
-  const sortedDebts = useMemo(() => {
-    return [...debts].sort((a, b) => {
+  const filteredDebts = useMemo(() => {
+    let data = [...debts];
+
+    if (selectedTab === 'Pengeluaran') {
+      data = data.filter((d) => isDebtType(d.type));
+    }
+
+    if (selectedTab === 'Pemasukan') {
+      data = data.filter((d) => !isDebtType(d.type));
+    }
+
+    return data.sort((a, b) => {
       const aTime = new Date(a.due_date).getTime();
       const bTime = new Date(b.due_date).getTime();
+
       return aTime - bTime;
     });
-  }, [debts]);
+  }, [debts, selectedTab]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
+      <StatusBar
+        backgroundColor={COLORS.background}
+        barStyle="dark-content"
+      />
 
+      {/* HEADER */}
       <View style={styles.header}>
-        <View style={styles.titleWrap}>
-          <View style={styles.titleIcon}>
-            <MaterialCommunityIcons name="bank" size={20} color="#fff" />
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <View style={styles.headerIcon}>
+              <MaterialCommunityIcons
+                name="bank"
+                size={22}
+                color={COLORS.primary}
+              />
+            </View>
+
+            <View>
+              <Text style={styles.headerTitle}>Utang dan Piutang</Text>
+              <Text style={styles.headerSubtitle}>
+                Pantau semua catatan pinjaman
+              </Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.titleText}>Utang dan Piutang</Text>
-            <Text style={styles.titleSub}>Pantau semua catatan pinjaman</Text>
-          </View>
+
+          <View style={styles.profile} />
         </View>
-
-        {/* <Pressable style={styles.addButtonHeader} onPress={() => router.push('/add-debt')}>
-          <MaterialCommunityIcons name="plus" size={20} color={COLORS.primary} />
-        </Pressable> */}
-
-        
       </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => void loadDebts()} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={() => void loadDebts()}
+          />
+        }
       >
+        {/* SUMMARY */}
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: '#d71920' }]}>
-            <Text style={styles.summaryLabel}>Total Utang</Text>
-            <Text style={styles.summaryAmount}>{toCurrency(totals.utang)}</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: '#fee2e2' },
+            ]}
+          >
+            <Text
+              style={[
+                styles.summaryLabel,
+                { color: COLORS.tertiary },
+              ]}
+            >
+              Total Utang
+            </Text>
+
+            <Text style={styles.summaryAmount}>
+              {toCurrency(totals.utang)}
+            </Text>
           </View>
 
-          <View style={[styles.summaryCard, { backgroundColor: '#0f8d3b' }]}>
-            <Text style={styles.summaryLabel}>Total Piutang</Text>
-            <Text style={styles.summaryAmount}>{toCurrency(totals.piutang)}</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: '#dcfce7' },
+            ]}
+          >
+            <Text
+              style={[
+                styles.summaryLabel,
+                { color: COLORS.secondary },
+              ]}
+            >
+              Total Piutang
+            </Text>
+
+            <Text style={styles.summaryAmount}>
+              {toCurrency(totals.piutang)}
+            </Text>
           </View>
         </View>
 
+        {/* FILTER */}
+        <View style={styles.filterRow}>
+          {['Semua', 'Pengeluaran', 'Pemasukan'].map((item) => {
+            const active = selectedTab === item;
+
+            return (
+              <TouchableOpacity
+                key={item}
+                style={[
+                  styles.filterButton,
+                  active && styles.filterButtonActive,
+                ]}
+                onPress={() => setSelectedTab(item)}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    active && styles.filterTextActive,
+                  ]}
+                >
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* SECTION */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Catatan Terbaru</Text>
-          <Pressable onPress={() => void loadDebts()}>
-            <Text style={styles.sectionAction}>Muat Ulang</Text>
-          </Pressable>
+
+          <MaterialCommunityIcons
+            name="filter-variant"
+            size={22}
+            color={COLORS.textSoft}
+          />
         </View>
 
-        {isLoading && sortedDebts.length === 0 ? (
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        {isLoading && filteredDebts.length === 0 ? (
+          <ActivityIndicator
+            size="large"
+            color={COLORS.primary}
+          />
         ) : null}
 
-        {!isLoading && sortedDebts.length === 0 ? (
+        {!isLoading && filteredDebts.length === 0 ? (
           <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="file-document-outline" size={28} color={COLORS.textSoft} />
-            <Text style={styles.emptyText}>Belum ada data utang atau piutang. Tambahkan catatan baru.</Text>
-            <Pressable style={styles.emptyButton} onPress={() => router.push('/add-debt')}>
-              <Text style={styles.emptyButtonText}>Tambah Catatan</Text>
-            </Pressable>
+            <MaterialCommunityIcons
+              name="file-document-outline"
+              size={40}
+              color={COLORS.textSoft}
+            />
+
+            <Text style={styles.emptyText}>
+              Belum ada data utang atau piutang
+            </Text>
+
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => router.push('/add-debt')}
+            >
+              <Text style={styles.addButtonText}>
+                Tambah Catatan
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
-        {sortedDebts.map((item) => {
+        {filteredDebts.map((item) => {
           const debt = isDebtType(item.type);
-          const statusMeta = getStatusMeta(item.status, item.due_date);
-          const notificationTime = calculateNotificationTime(item.due_date);
-          const timeUntilNotification = formatTimeUntilNotification(notificationTime);
+
+          const statusMeta = getStatusMeta(
+            item.status,
+            item.due_date,
+          );
+
+          const notificationTime =
+            calculateNotificationTime(item.due_date);
+
+          const timeUntilNotification =
+            formatTimeUntilNotification(notificationTime);
 
           return (
             <Pressable
               key={item.id}
-              style={styles.itemCard}
+              style={styles.card}
               onPress={() => {
                 setSelectedDebt(item);
                 setDetailModalVisible(true);
               }}
             >
-              <View style={styles.itemTop}>
-                <View style={styles.itemLeft}>
+              <View style={styles.cardTop}>
+                <View style={styles.cardLeft}>
                   <View
                     style={[
-                      styles.itemIcon,
-                      { backgroundColor: debt ? '#fee2e2' : '#dcfce7' },
+                      styles.iconBox,
+                      debt
+                        ? styles.debtBg
+                        : styles.receivableBg,
                     ]}
                   >
                     <MaterialCommunityIcons
-                      name={debt ? 'arrow-top-right' : 'arrow-bottom-left'}
-                      size={18}
-                      color={debt ? COLORS.expense : COLORS.income}
+                      name={
+                        debt
+                          ? 'arrow-top-right'
+                          : 'arrow-bottom-left'
+                      }
+                      size={22}
+                      color={
+                        debt
+                          ? COLORS.tertiary
+                          : COLORS.secondary
+                      }
                     />
                   </View>
 
                   <View>
-                    <Text style={styles.itemTitle}>{item.name}</Text>
-                    <Text style={styles.itemDate}>Jatuh tempo: {formatDate(item.due_date)}</Text>
+                    <Text style={styles.itemTitle}>
+                      {item.name}
+                    </Text>
+
+                    <Text style={styles.itemDate}>
+                      {formatDate(item.due_date)}
+                    </Text>
                   </View>
                 </View>
 
@@ -613,129 +817,219 @@ export default function DebtScreen() {
                   <Text
                     style={[
                       styles.itemAmount,
-                      { color: debt ? COLORS.expense : COLORS.income },
+                      {
+                        color: debt
+                          ? COLORS.tertiary
+                          : COLORS.secondary,
+                      },
                     ]}
                   >
-                    {debt ? '- ' : '+ '}
                     {toCurrency(item.amount)}
                   </Text>
 
-                  <View style={[styles.statusBadge, { backgroundColor: statusMeta.badgeBg }]}>
-                    <Text style={[styles.statusText, { color: statusMeta.badgeText }]}>{statusMeta.label}</Text>
+                  <View
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: statusMeta.bg,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        { color: statusMeta.text },
+                      ]}
+                    >
+                      {statusMeta.label}
+                    </Text>
                   </View>
                 </View>
               </View>
 
-              {/* Reminder Countdown */}
-              <View style={styles.reminderCountdownBox}>
-                <Ionicons name="alarm" size={14} color={COLORS.primary} />
-                <Text style={styles.reminderCountdownText}>
+              <View style={styles.reminderBox}>
+                <Ionicons
+                  name="notifications"
+                  size={16}
+                  color={COLORS.primary}
+                />
+
+                <Text style={styles.reminderText}>
                   Pengingat dalam {timeUntilNotification}
                 </Text>
               </View>
             </Pressable>
           );
         })}
-
-        {/* Detail Modal */}
-        <Modal
-          visible={detailModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setDetailModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
-                  <Ionicons name="close" size={24} color={COLORS.text} />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>Detail Catatan</Text>
-                <View style={{ width: 24 }} />
-              </View>
-
-              {selectedDebt && (
-                <ScrollView style={styles.modalBody}>
-                  <View style={styles.detailCard}>
-                    <View style={styles.detailIconBox}>
-                      <MaterialCommunityIcons
-                        name={isDebtType(selectedDebt.type) ? 'arrow-top-right' : 'arrow-bottom-left'}
-                        size={32}
-                        color={isDebtType(selectedDebt.type) ? COLORS.expense : COLORS.income}
-                      />
-                    </View>
-
-                    <Text style={styles.detailName}>{selectedDebt.name}</Text>
-
-                    <Text style={styles.detailAmount}>
-                      {isDebtType(selectedDebt.type) ? '- ' : '+ '}
-                      {toCurrency(selectedDebt.amount)}
-                    </Text>
-
-                    <View style={styles.detailRow}>
-                      <MaterialCommunityIcons name="calendar" size={16} color={COLORS.textSoft} />
-                      <Text style={styles.detailRowText}>{formatDate(selectedDebt.due_date)}</Text>
-                    </View>
-
-                    <View style={styles.detailRow}>
-                      <Ionicons name="alarm" size={16} color={COLORS.textSoft} />
-                      <Text style={styles.detailRowText}>
-                        Pengingat dalam {formatTimeUntilNotification(calculateNotificationTime(selectedDebt.due_date))}
-                      </Text>
-                    </View>
-
-                    <View style={styles.detailStatusBox}>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: getStatusMeta(selectedDebt.status, selectedDebt.due_date).badgeBg },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: getStatusMeta(selectedDebt.status, selectedDebt.due_date).badgeText },
-                          ]}
-                        >
-                          {getStatusMeta(selectedDebt.status, selectedDebt.due_date).label}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.actionButtonsRow}>
-                    <TouchableOpacity
-                      style={styles.editButtonFull}
-                      onPress={() => {
-                        setDetailModalVisible(false);
-                        router.push({
-                          pathname: '/add-debt',
-                          params: { editId: selectedDebt.id.toString() },
-                        });
-                      }}
-                    >
-                      <MaterialCommunityIcons name="pencil" size={18} color="#fff" />
-                      <Text style={styles.actionButtonText}>Edit</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.deleteButtonFull}
-                      onPress={() => handleDeleteDebt(selectedDebt.id, selectedDebt.name)}
-                    >
-                      <MaterialCommunityIcons name="trash-can-outline" size={18} color="#fff" />
-                      <Text style={styles.actionButtonText}>Hapus</Text>
-                    </TouchableOpacity>
-                  </View>
-                </ScrollView>
-              )}
-            </View>
-          </View>
-        </Modal>
       </ScrollView>
 
-      <Pressable style={styles.fab} onPress={() => router.push('/add-debt')}>
-        <MaterialCommunityIcons name="plus" size={32} color="#fff" />
-      </Pressable>
+      {/* MODAL */}
+      <Modal
+        visible={detailModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDetailModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                onPress={() => setDetailModalVisible(false)}
+              >
+                <Ionicons
+                  name="close"
+                  size={24}
+                  color={COLORS.text}
+                />
+              </TouchableOpacity>
+
+              <Text style={styles.modalTitle}>
+                Detail Catatan
+              </Text>
+
+              <View style={{ width: 24 }} />
+            </View>
+
+            {selectedDebt && (
+              <ScrollView style={styles.modalBody}>
+                <View style={styles.detailCard}>
+                  <View
+                    style={[
+                      styles.detailIcon,
+                      {
+                        backgroundColor: isDebtType(
+                          selectedDebt.type,
+                        )
+                          ? '#fee2e2'
+                          : '#dcfce7',
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={
+                        isDebtType(selectedDebt.type)
+                          ? 'arrow-top-right'
+                          : 'arrow-bottom-left'
+                      }
+                      size={32}
+                      color={
+                        isDebtType(selectedDebt.type)
+                          ? COLORS.tertiary
+                          : COLORS.secondary
+                      }
+                    />
+                  </View>
+
+                  <Text style={styles.detailName}>
+                    {selectedDebt.name}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.detailAmount,
+                      {
+                        color: isDebtType(selectedDebt.type)
+                          ? COLORS.tertiary
+                          : COLORS.secondary,
+                      },
+                    ]}
+                  >
+                    {toCurrency(selectedDebt.amount)}
+                  </Text>
+
+                  <View style={styles.detailRow}>
+                    <MaterialCommunityIcons
+                      name="calendar"
+                      size={16}
+                      color={COLORS.textSoft}
+                    />
+
+                    <Text style={styles.detailText}>
+                      {formatDate(selectedDebt.due_date)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Ionicons
+                      name="notifications"
+                      size={16}
+                      color={COLORS.textSoft}
+                    />
+
+                    <Text style={styles.detailText}>
+                      Pengingat dalam{' '}
+                      {formatTimeUntilNotification(
+                        calculateNotificationTime(
+                          selectedDebt.due_date,
+                        ),
+                      )}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => {
+                      setDetailModalVisible(false);
+
+                      router.push({
+                        pathname: '/add-debt',
+                        params: {
+                          editId:
+                            selectedDebt.id.toString(),
+                        },
+                      });
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="pencil"
+                      size={18}
+                      color="#fff"
+                    />
+
+                    <Text style={styles.actionText}>
+                      Edit
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() =>
+                      handleDeleteDebt(
+                        selectedDebt.id,
+                        selectedDebt.name,
+                      )
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name="trash-can-outline"
+                      size={18}
+                      color="#fff"
+                    />
+
+                    <Text style={styles.actionText}>
+                      Hapus
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push('/add-debt')}
+      >
+        <MaterialCommunityIcons
+          name="plus"
+          size={34}
+          color="#fff"
+        />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }

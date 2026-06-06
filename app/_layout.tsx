@@ -33,11 +33,10 @@ import { setupAppServices } from "@/utils/appInit";
 
 
 export const unstable_settings = {
-  anchor: "(tabs)",
+  initialRouteName: "(tabs)",
 };
 
 function RootLayoutContent() {
-  const colorScheme = useColorScheme();
   const { isAuthenticated, isLoading } = useAuth();
   const loadTransactions = useTransactionStore((s) => s.loadTransactions);
   const loadBudgets = useBudgetStore((s) => s.loadBudgets);
@@ -93,7 +92,7 @@ function RootLayoutContent() {
 
   if (!isAuthenticated) {
     return (
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <>
         <Stack>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="register" options={{ headerShown: false }} />
@@ -105,12 +104,12 @@ function RootLayoutContent() {
         </Stack>
         <Redirect href="/login" />
         <StatusBar style="auto" />
-      </ThemeProvider>
+      </>
     );
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
@@ -124,7 +123,7 @@ function RootLayoutContent() {
         <Stack.Screen name="register" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
-    </ThemeProvider>
+    </>
   );
 }
 
